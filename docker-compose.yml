@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: fear-and-greed-online-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fear_and_greed_online
+      POSTGRES_USER: fear_and_greed
+      POSTGRES_PASSWORD: fear_and_greed
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fear_and_greed -d fear_and_greed_online"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:

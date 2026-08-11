@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fear and Greed Online</title>
+  <style>
+    :root {
+      --bg: #f5f1e8;
+      --panel: rgba(255, 252, 245, 0.92);
+      --text: #1f1a14;
+      --muted: #726456;
+      --line: #d8c7b1;
+      --accent: #c45b2d;
+      --green: #1d8f5f;
+      --red: #b53b2f;
+      --shadow: 0 20px 60px rgba(73, 47, 24, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(196, 91, 45, 0.16), transparent 28%),
+        radial-gradient(circle at top right, rgba(29, 143, 95, 0.12), transparent 24%),
+        linear-gradient(180deg, #f8f4ec, #efe5d5 70%);
+      min-height: 100vh;
+    }
+
+    .page {
+      width: min(1440px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 40px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .hero-card, .panel {
+      background: var(--panel);
+      border: 1px solid rgba(216, 199, 177, 0.9);
+      box-shadow: var(--shadow);
+      border-radius: 22px;
+      backdrop-filter: blur(12px);
+    }
+
+    .hero-card {
+      padding: 24px;
+    }
+
+    .hero h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 4vw, 48px);
+      line-height: 0.96;
+      letter-spacing: -0.04em;
+      font-family: Georgia, "Iowan Old Style", serif;
+      max-width: 10ch;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 56ch;
+      line-height: 1.5;
+    }
+
+    .hero-meta {
+      padding: 24px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .metric {
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+
+    .metric:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+
+    .metric-value {
+      margin-top: 4px;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .metric-value.small {
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .freshness-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+      align-items: start;
+    }
+
+    .freshness-card {
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255,255,255,0.72);
+    }
+
+    .freshness-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .freshness-value {
+      margin-top: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .freshness-age {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .freshness-section-title {
+      margin: 0 0 4px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .freshness-context {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .freshness-hint {
+      margin-bottom: 14px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1.45;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.72);
+    }
+
+    .freshness-hint.ok {
+      border-color: rgba(29, 143, 95, 0.35);
+      background: rgba(29, 143, 95, 0.08);
+      color: var(--green);
+    }
+
+    .freshness-hint.warn {
+      border-color: rgba(196, 91, 45, 0.35);
+      background: rgba(196, 91, 45, 0.08);
+      color: var(--accent);
+    }
+
+    .freshness-hint.missing {
+      border-color: rgba(181, 59, 47, 0.35);
+      background: rgba(181, 59, 47, 0.08);
+      color: var(--red);
+    }
+
+    .freshness-card.warn {
+      border-color: rgba(196, 91, 45, 0.45);
+    }
+
+    .freshness-card.missing {
+      border-color: rgba(181, 59, 47, 0.45);
+    }
+
+    .run-badge {
+      display: inline-block;
+      margin-bottom: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .run-badge.success {
+      background: rgba(29, 143, 95, 0.14);
+      color: var(--green);
+    }
+
+    .run-badge.failed {
+      background: rgba(181, 59, 47, 0.14);
+      color: var(--red);
+    }
+
+    .run-badge.running {
+      background: rgba(196, 91, 45, 0.14);
+      color: var(--accent);
+    }
+
+    .toolbar {
+      padding: 18px;
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    select, input, button {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: #fffdf9;
+      color: var(--text);
+      font: inherit;
+    }
+
+    button {
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+      border-color: transparent;
+      align-self: end;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.7fr);
+      gap: 18px;
+    }
+
+    .chart-panel {
+      padding: 18px;
+    }
+
+    .chart-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .chart-title {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .chart-subtitle {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    #chart {
+      height: 560px;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: #fbf7f0;
+    }
+
+    .sidebar {
+      display: grid;
+      gap: 18px;
+    }
+
+    .panel {
+      padding: 18px;
+    }
+
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      letter-spacing: 0.02em;
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+      max-height: 320px;
+      overflow: auto;
+    }
+
+    .item {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.74);
+      cursor: pointer;
+    }
+
+    .item:hover {
+      border-color: var(--accent);
+    }
+
+    .item.selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(196, 91, 45, 0.25);
+    }
+
+    .detail-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .detail-row {
+      display: grid;
+      gap: 2px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .detail-row:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .detail-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .detail-value {
+      font-size: 14px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+
+    .detail-meta pre {
+      margin: 0;
+      padding: 10px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.8);
+      border: 1px solid var(--line);
+      font-size: 12px;
+      overflow: auto;
+    }
+
+    .item strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .meta-line {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(29, 143, 95, 0.12);
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .status.error {
+      background: rgba(181, 59, 47, 0.12);
+      color: var(--red);
+    }
+
+    @media (max-width: 1100px) {
+      .hero, .layout { grid-template-columns: 1fr; }
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      .freshness-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 720px) {
+      .page { width: min(100vw - 20px, 1440px); padding-top: 16px; }
+      .toolbar { grid-template-columns: 1fr; }
+      #chart { height: 420px; }
+    }
+  </style>
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <div class="hero-card">
+        <h1>Fear and Greed Online</h1>
+        <p>Interactive chart dashboard for Binance Spot market data, independent strategy signals, and recent run history. Built for a frozen top-50 universe with current active symbols mapped directly from the local PostgreSQL database.</p>
+      </div>
+      <div class="hero-meta hero-card">
+        <div class="metric">
+          <div class="metric-label">Active Universe</div>
+          <div class="metric-value" id="metricSymbols">-</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Last Candle Sync</div>
+          <div class="metric-value small" id="metricSync">-</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Last Strategy Recalc</div>
+          <div class="metric-value small" id="metricStrategyRun">-</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Latest Candle</div>
+          <div class="metric-value small" id="metricLatestCandle">-</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="toolbar panel">
+      <label>Symbol
+        <select id="symbol"></select>
+      </label>
+      <label>Timeframe
+        <select id="timeframe"></select>
+      </label>
+      <label>Strategy
+        <select id="strategy"></select>
+      </label>
+      <label>From
+        <input id="from" type="datetime-local">
+      </label>
+      <label>To
+        <input id="to" type="datetime-local">
+      </label>
+      <button id="refresh">Refresh Dashboard</button>
+    </section>
+
+    <section class="layout">
+      <div class="chart-panel hero-card">
+        <div class="chart-head">
+          <div>
+            <div class="chart-title" id="chartTitle">Loading chart…</div>
+            <div class="chart-subtitle" id="chartSubtitle">Waiting for data.</div>
+          </div>
+          <div id="status" class="status">Booting</div>
+        </div>
+        <div class="freshness-grid" id="freshnessGrid">
+          <div>
+            <h3 class="freshness-section-title">Data Freshness</h3>
+            <div class="freshness-context" id="freshnessContext">Waiting for active chart context.</div>
+            <div class="freshness-hint ok" id="freshnessHint">Operational context will appear after the first chart load.</div>
+          </div>
+          <div class="freshness-card" id="freshnessSyncCard">
+            <div class="freshness-label">Last Candle Sync (UTC+7)</div>
+            <div class="freshness-value" id="freshnessSync">—</div>
+            <div class="freshness-age" id="freshnessSyncAge">—</div>
+          </div>
+          <div class="freshness-card" id="freshnessStrategyCard">
+            <div class="freshness-label">Last Strategy Recalc (UTC+7)</div>
+            <div class="freshness-value" id="freshnessStrategy">—</div>
+            <div class="freshness-age" id="freshnessStrategyAge">—</div>
+          </div>
+          <div class="freshness-card" id="freshnessCandleCard">
+            <div class="freshness-label">Latest Candle (UTC+7)</div>
+            <div class="freshness-value" id="freshnessCandle">—</div>
+            <div class="freshness-age" id="freshnessCandleAge">—</div>
+          </div>
+        </div>
+        <div id="chart"></div>
+      </div>
+
+      <div class="sidebar">
+        <div class="panel">
+          <h2>Inspection</h2>
+          <div id="detailEmpty" class="meta-line">Select a signal or trade to inspect details.</div>
+          <div id="detailContent" class="detail-grid" hidden></div>
+        </div>
+        <div class="panel">
+          <h2>Recent Strategy Runs</h2>
+          <div id="runs" class="list"></div>
+        </div>
+        <div class="panel">
+          <h2>Signals In Range</h2>
+          <div id="signals" class="list"></div>
+        </div>
+        <div class="panel">
+          <h2>Trades In Range</h2>
+          <div id="trades" class="list"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const state = {
+      symbols: [],
+      timeframes: [],
+      strategies: [],
+      chart: null,
+      series: null,
+      signals: [],
+      trades: [],
+      selected: null
+    };
+
+    const els = {
+      symbol: document.getElementById('symbol'),
+      timeframe: document.getElementById('timeframe'),
+      strategy: document.getElementById('strategy'),
+      from: document.getElementById('from'),
+      to: document.getElementById('to'),
+      refresh: document.getElementById('refresh'),
+      chartTitle: document.getElementById('chartTitle'),
+      chartSubtitle: document.getElementById('chartSubtitle'),
+      metricSymbols: document.getElementById('metricSymbols'),
+      metricSync: document.getElementById('metricSync'),
+      metricStrategyRun: document.getElementById('metricStrategyRun'),
+      metricLatestCandle: document.getElementById('metricLatestCandle'),
+      freshnessContext: document.getElementById('freshnessContext'),
+      freshnessHint: document.getElementById('freshnessHint'),
+      freshnessSyncCard: document.getElementById('freshnessSyncCard'),
+      freshnessStrategyCard: document.getElementById('freshnessStrategyCard'),
+      freshnessCandleCard: document.getElementById('freshnessCandleCard'),
+      freshnessSync: document.getElementById('freshnessSync'),
+      freshnessStrategy: document.getElementById('freshnessStrategy'),
+      freshnessCandle: document.getElementById('freshnessCandle'),
+      freshnessSyncAge: document.getElementById('freshnessSyncAge'),
+      freshnessStrategyAge: document.getElementById('freshnessStrategyAge'),
+      freshnessCandleAge: document.getElementById('freshnessCandleAge'),
+      status: document.getElementById('status'),
+      detailEmpty: document.getElementById('detailEmpty'),
+      detailContent: document.getElementById('detailContent'),
+      runs: document.getElementById('runs'),
+      signals: document.getElementById('signals'),
+      trades: document.getElementById('trades'),
+      chart: document.getElementById('chart')
+    };
+
+    function setStatus(text, isError = false) {
+      els.status.textContent = text;
+      els.status.classList.toggle('error', isError);
+    }
+
+    function fmtDate(dateStr) {
+      return new Date(dateStr).toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' });
+    }
+
+    function fmtFreshness(value, suffix = '') {
+      if (!value) {
+        return 'No data yet';
+      }
+      return `${fmtDate(value)}${suffix}`;
+    }
+
+    function fmtRelativeAge(value) {
+      if (!value) {
+        return 'No timestamp available';
+      }
+
+      const target = new Date(value);
+      const diffMs = Date.now() - target.getTime();
+      const minutes = Math.max(0, Math.round(diffMs / 60000));
+      if (minutes < 1) {
+        return 'just now';
+      }
+      if (minutes < 60) {
+        return `${minutes} min ago`;
+      }
+
+      const hours = Math.round(minutes / 60);
+      if (hours < 48) {
+        return `${hours} h ago`;
+      }
+
+      const days = Math.round(hours / 24);
+      return `${days} d ago`;
+    }
+
+    function parseFreshnessDate(freshness, key) {
+      const value = freshness?.[key];
+      return value ? new Date(value) : null;
+    }
+
+    function classifyFreshness(freshness) {
+      const latest = parseFreshnessDate(freshness, 'latest_candle_time');
+      const sync = parseFreshnessDate(freshness, 'last_candle_sync_at');
+      const strategy = parseFreshnessDate(freshness, 'last_strategy_run_at');
+
+      if (!latest && !sync) {
+        return {
+          level: 'missing',
+          message: 'No market data has been synced for this symbol and timeframe yet. Run candle sync before expecting chart history.'
+        };
+      }
+
+      if (latest && strategy && strategy < latest) {
+        return {
+          level: 'warn',
+          message: 'Market data is newer than the last successful strategy recalculation. Signals may be stale for the latest candles.'
+        };
+      }
+
+      if (!strategy) {
+        return {
+          level: 'warn',
+          message: 'Candles are available, but no successful strategy recalculation has been recorded for this context yet.'
+        };
+      }
+
+      return {
+        level: 'ok',
+        message: 'Operational context looks current for the selected symbol, timeframe, and strategy.'
+      };
+    }
+
+    function setFreshnessCardState(card, hasValue, warn = false) {
+      card.classList.toggle('warn', warn && hasValue);
+      card.classList.toggle('missing', !hasValue);
+    }
+
+    function runBadgeClass(status) {
+      if (status === 'success') {
+        return 'success';
+      }
+      if (status === 'failed') {
+        return 'failed';
+      }
+      return 'running';
+    }
+
+    function fmtPrice(value) {
+      if (value == null || value === '') {
+        return '—';
+      }
+      return Number(value).toFixed(2);
+    }
+
+    function fmtPct(value) {
+      if (value == null) {
+        return '—';
+      }
+      return `${Number(value).toFixed(2)}%`;
+    }
+
+    function fmtMeta(meta) {
+      if (!meta || Object.keys(meta).length === 0) {
+        return '—';
+      }
+      return JSON.stringify(meta, null, 2);
+    }
+
+    function detailRow(label, value) {
+      return `
+        <div class="detail-row">
+          <div class="detail-label">${label}</div>
+          <div class="detail-value">${value}</div>
+        </div>
+      `;
+    }
+
+    function escapeHTML(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+    }
+
+    function defaultFromDate() {
+      const date = new Date();
+      date.setUTCDate(date.getUTCDate() - 30);
+      date.setUTCMinutes(0, 0, 0);
+      return date.toISOString().slice(0, 16);
+    }
+
+    function defaultToDate() {
+      const date = new Date();
+      date.setUTCSeconds(0, 0);
+      return date.toISOString().slice(0, 16);
+    }
+
+    function ensureDefaultRange() {
+      if (!els.from.value) {
+        els.from.value = defaultFromDate();
+      }
+      if (!els.to.value) {
+        els.to.value = defaultToDate();
+      }
+    }
+
+    function resolveRange() {
+      ensureDefaultRange();
+
+      const from = new Date(els.from.value);
+      const to = new Date(els.to.value);
+      if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+        throw new Error('Invalid date range');
+      }
+      if (from >= to) {
+        throw new Error('From must be before To');
+      }
+
+      return {
+        from: from.toISOString(),
+        to: to.toISOString()
+      };
+    }
+
+    function buildChartParams() {
+      const range = resolveRange();
+      return new URLSearchParams({
+        symbol: els.symbol.value,
+        timeframe: els.timeframe.value,
+        strategy: els.strategy.value,
+        from: range.from,
+        to: range.to
+      });
+    }
+
+    function populateSelect(select, items, valueKey, labelKey) {
+      select.innerHTML = '';
+      for (const item of items) {
+        const option = document.createElement('option');
+        option.value = item[valueKey];
+        option.textContent = item[labelKey];
+        select.appendChild(option);
+      }
+    }
+
+    function strategiesForTimeframe(timeframe) {
+      return state.strategies.filter(strategy =>
+        Array.isArray(strategy.SupportedTimeframes) && strategy.SupportedTimeframes.includes(timeframe)
+      );
+    }
+
+    function syncStrategyOptions() {
+      const timeframe = els.timeframe.value || state.timeframes[0]?.Code;
+      const available = strategiesForTimeframe(timeframe);
+      const previous = els.strategy.value;
+
+      populateSelect(els.strategy, available, 'Slug', 'Name');
+
+      if (available.length === 0) {
+        throw new Error(`No strategies support timeframe ${timeframe}`);
+      }
+
+      const hasPrevious = available.some(item => item.Slug === previous);
+      els.strategy.value = hasPrevious ? previous : available[0].Slug;
+    }
+
+    async function fetchJSON(url) {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`${response.status} ${response.statusText}`);
+      }
+      return response.json();
+    }
+
+    async function bootstrap() {
+      setStatus('Loading reference data');
+      const [symbolsRes, timeframesRes, strategiesRes] = await Promise.all([
+        fetchJSON('/symbols/active'),
+        fetchJSON('/timeframes'),
+        fetchJSON('/strategies')
+      ]);
+
+      state.symbols = symbolsRes.items || [];
+      state.timeframes = timeframesRes.items || [];
+      state.strategies = strategiesRes.items || [];
+
+      populateSelect(els.symbol, state.symbols, 'AssetCode', 'AssetCode');
+      populateSelect(els.timeframe, state.timeframes, 'Code', 'Code');
+      syncStrategyOptions();
+
+      els.metricSymbols.textContent = symbolsRes.active_count ?? symbolsRes.count ?? state.symbols.length;
+      els.from.value = defaultFromDate();
+      els.to.value = defaultToDate();
+
+      buildChart();
+      bindFilterListeners();
+      await refreshDashboard();
+    }
+
+    function bindFilterListeners() {
+      for (const element of [els.symbol, els.strategy, els.from, els.to]) {
+        element.addEventListener('change', () => {
+          refreshDashboard().catch(error => setStatus(`Error: ${error.message}`, true));
+        });
+      }
+
+      els.timeframe.addEventListener('change', () => {
+        try {
+          syncStrategyOptions();
+        } catch (error) {
+          setStatus(`Error: ${error.message}`, true);
+          return;
+        }
+        refreshDashboard().catch(error => setStatus(`Error: ${error.message}`, true));
+      });
+    }
+
+    function buildChart() {
+      if (state.chart) {
+        state.chart.remove();
+      }
+
+      state.chart = LightweightCharts.createChart(els.chart, {
+        layout: {
+          background: { color: '#fbf7f0' },
+          textColor: '#3b2e22'
+        },
+        grid: {
+          vertLines: { color: '#eadfcd' },
+          horzLines: { color: '#eadfcd' }
+        },
+        rightPriceScale: { borderColor: '#d8c7b1' },
+        timeScale: { borderColor: '#d8c7b1', timeVisible: true },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal }
+      });
+
+      state.series = state.chart.addCandlestickSeries({
+        upColor: '#1d8f5f',
+        downColor: '#b53b2f',
+        borderVisible: false,
+        wickUpColor: '#1d8f5f',
+        wickDownColor: '#b53b2f'
+      });
+
+      state.chart.subscribeClick(param => {
+        if (!param.time || !state.signals.length) {
+          return;
+        }
+
+        const match = state.signals.find(signal =>
+          Math.floor(new Date(signal.SignalTime).getTime() / 1000) === param.time
+        );
+        if (match) {
+          selectItem('signal', match.ID);
+        }
+      });
+    }
+
+    function selectItem(kind, id) {
+      state.selected = { kind, id };
+      renderSignals(state.signals);
+      renderTrades(state.trades);
+      renderDetail();
+    }
+
+    function renderDetail() {
+      if (!state.selected) {
+        els.detailEmpty.hidden = false;
+        els.detailContent.hidden = true;
+        els.detailContent.innerHTML = '';
+        return;
+      }
+
+      const item = state.selected.kind === 'signal'
+        ? state.signals.find(signal => signal.ID === state.selected.id)
+        : state.trades.find(trade => trade.ID === state.selected.id);
+
+      if (!item) {
+        state.selected = null;
+        renderDetail();
+        return;
+      }
+
+      els.detailEmpty.hidden = true;
+      els.detailContent.hidden = false;
+
+      if (state.selected.kind === 'signal') {
+        els.detailContent.innerHTML = `
+          ${detailRow('Type', `${item.SignalType.toUpperCase()} · ${item.Side.toUpperCase()}`)}
+          ${detailRow('Signal time (UTC+7)', escapeHTML(fmtDate(item.SignalTime)))}
+          ${detailRow('Price', escapeHTML(fmtPrice(item.Price)))}
+          ${detailRow('Status', escapeHTML(item.Status))}
+          ${detailRow('Title', escapeHTML(item.Title || '—'))}
+          ${detailRow('Details', escapeHTML(item.Details || '—'))}
+          ${detailRow('Strategy metadata', `<pre>${escapeHTML(fmtMeta(item.Meta))}</pre>`)}
+        `;
+        return;
+      }
+
+      els.detailContent.innerHTML = `
+        ${detailRow('Status', escapeHTML(item.Status.toUpperCase()))}
+        ${detailRow('Side', escapeHTML(item.Side.toUpperCase()))}
+        ${detailRow('Entry time (UTC+7)', escapeHTML(fmtDate(item.EntryTime)))}
+        ${detailRow('Exit time (UTC+7)', item.ExitTime ? escapeHTML(fmtDate(item.ExitTime)) : 'Open')}
+        ${detailRow('Entry price', escapeHTML(fmtPrice(item.EntryPrice)))}
+        ${detailRow('Exit price', escapeHTML(fmtPrice(item.ExitPrice)))}
+        ${detailRow('PnL', item.PnLAbs != null ? escapeHTML(`${fmtPrice(item.PnLAbs)} (${fmtPct(item.PnLPct)})`) : '—')}
+        ${detailRow('Strategy metadata', `<pre>${escapeHTML(fmtMeta(item.Meta))}</pre>`)}
+      `;
+    }
+
+    function renderRuns(items) {
+      els.runs.innerHTML = '';
+      if (!items.length) {
+        els.runs.innerHTML = '<div class="meta-line">No strategy runs for this symbol, timeframe, and strategy yet.</div>';
+        return;
+      }
+
+      for (const item of items) {
+        const node = document.createElement('div');
+        node.className = 'item';
+        const finished = item.FinishedAt ? fmtDate(item.FinishedAt) : 'In progress';
+        node.innerHTML = `
+          <span class="run-badge ${runBadgeClass(item.Status)}">${item.Status.toUpperCase()}</span>
+          <strong>Run #${item.ID}</strong>
+          <div class="meta-line">Started: ${fmtDate(item.StartedAt)}</div>
+          <div class="meta-line">Finished: ${finished}</div>
+          <div class="meta-line">Candles: ${item.CandlesCount} · Signals: ${item.SignalsCount} · Trades: ${item.TradesCount}</div>
+        `;
+        els.runs.appendChild(node);
+      }
+    }
+
+    function renderFreshness(freshness, payload = {}) {
+      const syncLoadedTo = freshness?.last_candle_sync_loaded_to
+        ? ` · loaded to ${fmtDate(freshness.last_candle_sync_loaded_to)}`
+        : '';
+      const strategySuffix = freshness?.last_strategy_run_signals_count != null
+        ? ` · ${freshness.last_strategy_run_signals_count} signals / ${freshness.last_strategy_run_trades_count} trades`
+        : '';
+      const classification = classifyFreshness(freshness);
+      const symbol = freshness?.symbol || payload.symbol?.AssetCode || els.symbol.value;
+      const timeframe = freshness?.timeframe || payload.timeframe?.Code || els.timeframe.value;
+      const strategy = freshness?.strategy || payload.strategy?.Slug || els.strategy.value;
+
+      els.freshnessContext.textContent = `${symbol} · ${timeframe} · ${strategy}`;
+      els.freshnessHint.textContent = classification.message;
+      els.freshnessHint.className = `freshness-hint ${classification.level}`;
+
+      els.freshnessSync.textContent = fmtFreshness(freshness?.last_candle_sync_at, syncLoadedTo);
+      els.freshnessStrategy.textContent = fmtFreshness(freshness?.last_strategy_run_at, strategySuffix);
+      els.freshnessCandle.textContent = fmtFreshness(freshness?.latest_candle_time);
+
+      els.freshnessSyncAge.textContent = fmtRelativeAge(freshness?.last_candle_sync_at);
+      els.freshnessStrategyAge.textContent = fmtRelativeAge(freshness?.last_strategy_run_at);
+      els.freshnessCandleAge.textContent = fmtRelativeAge(freshness?.latest_candle_time);
+
+      setFreshnessCardState(els.freshnessSyncCard, Boolean(freshness?.last_candle_sync_at));
+      setFreshnessCardState(
+        els.freshnessStrategyCard,
+        Boolean(freshness?.last_strategy_run_at),
+        classification.level === 'warn' && Boolean(freshness?.last_strategy_run_at)
+      );
+      setFreshnessCardState(els.freshnessCandleCard, Boolean(freshness?.latest_candle_time));
+
+      els.metricSync.textContent = fmtFreshness(freshness?.last_candle_sync_at);
+      els.metricStrategyRun.textContent = fmtFreshness(freshness?.last_strategy_run_at);
+      els.metricLatestCandle.textContent = fmtFreshness(freshness?.latest_candle_time);
+    }
+
+    function renderSignals(items) {
+      els.signals.innerHTML = '';
+      for (const item of items.slice(-16).reverse()) {
+        const node = document.createElement('div');
+        const selected = state.selected?.kind === 'signal' && state.selected.id === item.ID;
+        node.className = `item${selected ? ' selected' : ''}`;
+        node.innerHTML = `
+          <strong>${item.SignalType.toUpperCase()} · ${item.Side.toUpperCase()}</strong>
+          <div class="meta-line">${fmtDate(item.SignalTime)}</div>
+          <div class="meta-line">${item.Title} @ ${fmtPrice(item.Price)}</div>
+        `;
+        node.addEventListener('click', () => selectItem('signal', item.ID));
+        els.signals.appendChild(node);
+      }
+    }
+
+    function renderTrades(items) {
+      els.trades.innerHTML = '';
+      for (const item of items.slice(-16).reverse()) {
+        const node = document.createElement('div');
+        const selected = state.selected?.kind === 'trade' && state.selected.id === item.ID;
+        const pnl = item.PnLAbs != null ? ` · PnL ${fmtPrice(item.PnLAbs)}` : '';
+        node.className = `item${selected ? ' selected' : ''}`;
+        node.innerHTML = `
+          <strong>${item.Status.toUpperCase()} · ${item.Side.toUpperCase()}</strong>
+          <div class="meta-line">Entry: ${fmtDate(item.EntryTime)}</div>
+          <div class="meta-line">${item.ExitTime ? `Exit: ${fmtDate(item.ExitTime)}` : 'Still open'}${pnl}</div>
+        `;
+        node.addEventListener('click', () => selectItem('trade', item.ID));
+        els.trades.appendChild(node);
+      }
+    }
+
+    function buildMarkers(signals) {
+      return (signals || []).map(signal => ({
+        time: Math.floor(new Date(signal.SignalTime).getTime() / 1000),
+        position: signal.SignalType === 'entry' ? 'belowBar' : 'aboveBar',
+        color: signal.SignalType === 'entry' ? '#1d8f5f' : '#b53b2f',
+        shape: signal.SignalType === 'entry' ? 'arrowUp' : 'arrowDown',
+        text: signal.SignalType === 'entry' ? 'IN' : 'OUT'
+      }));
+    }
+
+    async function refreshDashboard() {
+      setStatus('Loading chart data');
+
+      try {
+        const params = buildChartParams();
+        const payload = await fetchJSON(`/chart-data?${params.toString()}`);
+        const candles = payload.candles || [];
+        const signals = payload.signals || [];
+        const trades = payload.trades || [];
+        const runs = payload.recent_runs || [];
+        const previousSelection = state.selected;
+
+        state.signals = signals;
+        state.trades = trades;
+        state.selected = null;
+        if (previousSelection) {
+          const stillExists = previousSelection.kind === 'signal'
+            ? signals.some(signal => signal.ID === previousSelection.id)
+            : trades.some(trade => trade.ID === previousSelection.id);
+          if (stillExists) {
+            state.selected = previousSelection;
+          }
+        }
+
+        state.series.setData(candles.map(item => ({
+          time: Math.floor(new Date(item.OpenTime).getTime() / 1000),
+          open: Number(item.Open),
+          high: Number(item.High),
+          low: Number(item.Low),
+          close: Number(item.Close)
+        })));
+        state.series.setMarkers(buildMarkers(signals));
+        state.chart.timeScale().fitContent();
+
+        els.chartTitle.textContent = `${payload.symbol.AssetCode} · ${payload.timeframe.Code} · ${payload.strategy.Name}`;
+        els.chartSubtitle.textContent = `${fmtDate(payload.from)} → ${fmtDate(payload.to)} · ${candles.length} candles, ${signals.length} signals, ${trades.length} trades`;
+        renderFreshness(payload.freshness || {}, payload);
+        renderRuns(runs);
+        renderSignals(signals);
+        renderTrades(trades);
+        renderDetail();
+        setStatus('Dashboard ready');
+      } catch (error) {
+        setStatus(`Error: ${error.message}`, true);
+      }
+    }
+
+    els.refresh.addEventListener('click', () => {
+      refreshDashboard().catch(error => setStatus(`Error: ${error.message}`, true));
+    });
+    window.addEventListener('resize', () => {
+      if (state.chart) {
+        state.chart.applyOptions({ width: els.chart.clientWidth, height: els.chart.clientHeight });
+      }
+    });
+
+    bootstrap().catch(error => setStatus(`Error: ${error.message}`, true));
+  </script>
+</body>
+</html>

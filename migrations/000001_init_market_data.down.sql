@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS ingestion_jobs;
+DROP TABLE IF EXISTS candles;
+DROP TABLE IF EXISTS timeframes;
+DROP TABLE IF EXISTS symbols;

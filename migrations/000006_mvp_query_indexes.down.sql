@@ -1,0 +1,4 @@
+DROP INDEX IF EXISTS signals_strategy_symbol_timeframe_signal_time_idx;
+DROP INDEX IF EXISTS trades_strategy_symbol_timeframe_entry_time_idx;
+DROP INDEX IF EXISTS ingestion_jobs_success_finished_at_idx;
+DROP INDEX IF EXISTS strategy_runs_success_finished_at_idx;

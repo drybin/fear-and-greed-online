@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS trades;
+DROP TABLE IF EXISTS signals;
+DROP TABLE IF EXISTS strategy_runs;
+DROP TABLE IF EXISTS strategies;
