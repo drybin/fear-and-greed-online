@@ -1,5 +1,6 @@
 APP_NAME=fear-and-greed-online
 BIN_DIR=bin
+DOCKER_COMPOSE := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi)
 
 define _info
 	@echo "==> $(1)"
@@ -94,14 +95,14 @@ check: tidy build unit-test lint
 .PHONY: postgres-up postgres-down postgres-logs migrate-up migrate-down migrate-reset bootstrap
 postgres-up:
 	$(call _info,Starting PostgreSQL...)
-	@docker compose up -d postgres
+	@$(DOCKER_COMPOSE) up -d postgres
 
 postgres-down:
 	$(call _info,Stopping PostgreSQL...)
-	@docker compose down
+	@$(DOCKER_COMPOSE) down
 
 postgres-logs:
-	@docker compose logs -f postgres
+	@$(DOCKER_COMPOSE) logs -f postgres
 
 migrate-up:
 	$(call _info,Applying migrations...)
