@@ -257,7 +257,15 @@ func registerRoutes(mux *http.ServeMux, db *sql.DB) {
 	})
 
 	fileServer := http.FileServer(http.Dir("web"))
-	mux.Handle("/", fileServer)
+	mux.Handle("/", noCacheStatic(fileServer))
+}
+
+func noCacheStatic(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
@@ -341,8 +349,8 @@ func resolveChartContext(
 		symbol:    symbol,
 		timeframe: timeframe,
 		strategy:  strategyDef,
-		from:      from,
-		to:        to,
+		from:      from.UTC(),
+		to:        to.UTC(),
 	}, nil
 }
 
@@ -356,9 +364,15 @@ type resolvedContext struct {
 
 func parseTime(raw string, fallback time.Time) (time.Time, error) {
 	if strings.TrimSpace(raw) == "" {
-		return fallback, nil
+		return fallback.UTC(), nil
 	}
-	return time.Parse(time.RFC3339, raw)
+	if parsed, err := time.Parse(time.RFC3339Nano, raw); err == nil {
+		return parsed.UTC(), nil
+	}
+	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+		return parsed.UTC(), nil
+	}
+	return time.Time{}, fmt.Errorf("unsupported time format %q", raw)
 }
 
 func supportsStrategyTimeframe(supported []string, code string) bool {

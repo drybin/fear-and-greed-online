@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store">
   <title>Fear and Greed Online</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/favicon.png" type="image/png" sizes="32x32">
@@ -524,10 +525,10 @@
       <label>Strategy
         <select id="strategy"></select>
       </label>
-      <label>From
+      <label>From (UTC+7)
         <input id="from" type="datetime-local">
       </label>
-      <label>To
+      <label>To (UTC+7)
         <input id="to" type="datetime-local">
       </label>
       <button id="refresh">Refresh Dashboard</button>
@@ -689,15 +690,37 @@
       els.status.classList.toggle('error', isError);
     }
 
-    function fmtDate(dateStr) {
-      return new Date(dateStr).toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' });
-    }
-
+    const DISPLAY_TZ = 'Asia/Bangkok';
+    const DISPLAY_TZ_OFFSET = '+07:00';
     const CHART_TZ_OFFSET_SEC = 7 * 60 * 60;
 
+    function fmtDate(dateStr) {
+      const date = parseTimestamp(dateStr);
+      if (Number.isNaN(date.getTime())) {
+        return '—';
+      }
+      return date.toLocaleString('en-GB', { timeZone: DISPLAY_TZ });
+    }
+
+    function parseTimestamp(value) {
+      if (value == null || value === '') {
+        return new Date(NaN);
+      }
+      if (value instanceof Date) {
+        return value;
+      }
+      if (typeof value === 'number') {
+        return new Date(value > 1e12 ? value : value * 1000);
+      }
+      const raw = String(value).trim();
+      if (/[zZ]|[+-]\d{2}:\d{2}$/.test(raw)) {
+        return new Date(raw);
+      }
+      return new Date(`${raw}Z`);
+    }
+
     function toChartUnix(value) {
-      const ms = typeof value === 'number' ? value * 1000 : new Date(value).getTime();
-      return Math.floor(ms / 1000) + CHART_TZ_OFFSET_SEC;
+      return Math.floor(parseTimestamp(value).getTime() / 1000) + CHART_TZ_OFFSET_SEC;
     }
 
     function fmtFreshness(value, suffix = '') {
@@ -712,7 +735,7 @@
         return 'No timestamp available';
       }
 
-      const target = new Date(value);
+      const target = parseTimestamp(value);
       const diffMs = Date.now() - target.getTime();
       const minutes = Math.max(0, Math.round(diffMs / 60000));
       if (minutes < 1) {
@@ -733,7 +756,19 @@
 
     function parseFreshnessDate(freshness, key) {
       const value = freshness?.[key];
-      return value ? new Date(value) : null;
+      return value ? parseTimestamp(value) : null;
+    }
+
+    function classifyRangeCutoff(payload, freshness) {
+      const latest = parseFreshnessDate(freshness, 'latest_candle_time');
+      const to = payload?.to ? parseTimestamp(payload.to) : null;
+      if (!latest || !to || Number.isNaN(to.getTime())) {
+        return null;
+      }
+      if (latest.getTime() - to.getTime() <= 20 * 60 * 1000) {
+        return null;
+      }
+      return `The To filter (${fmtDate(payload.to)}) cuts off the chart before the latest candle (${fmtDate(latest)}). Click Refresh Dashboard to load up to now.`;
     }
 
     function classifyFreshness(freshness) {
@@ -822,21 +857,35 @@
     }
 
     function toDateTimeLocalValue(date) {
-      const pad = (value) => String(value).padStart(2, '0');
-      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: DISPLAY_TZ,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+      }).formatToParts(date);
+      const get = (type) => parts.find(part => part.type === type)?.value;
+      return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
     }
 
     function defaultFromDate() {
-      const date = new Date();
-      date.setDate(date.getDate() - 30);
-      date.setMinutes(0, 0, 0);
+      const date = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      date.setUTCMinutes(0, 0, 0);
       return toDateTimeLocalValue(date);
     }
 
     function defaultToDate() {
-      const date = new Date();
-      date.setSeconds(0, 0);
-      return toDateTimeLocalValue(date);
+      return toDateTimeLocalValue(new Date());
+    }
+
+    function parseUTC7Input(value) {
+      if (!value) {
+        return new Date(NaN);
+      }
+      const normalized = value.length === 16 ? `${value}:00` : value;
+      return new Date(`${normalized}${DISPLAY_TZ_OFFSET}`);
     }
 
     function ensureDefaultRange() {
@@ -851,8 +900,8 @@
     function resolveRange() {
       ensureDefaultRange();
 
-      const from = new Date(els.from.value);
-      const to = new Date(els.to.value);
+      const from = parseUTC7Input(els.from.value);
+      const to = parseUTC7Input(els.to.value);
       if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
         throw new Error('Invalid date range');
       }
@@ -1073,7 +1122,10 @@
       const strategySuffix = freshness?.last_strategy_run_signals_count != null
         ? ` · ${freshness.last_strategy_run_signals_count} signals / ${freshness.last_strategy_run_trades_count} trades`
         : '';
-      const classification = classifyFreshness(freshness);
+      const cutoffMessage = classifyRangeCutoff(payload, freshness);
+      const classification = cutoffMessage
+        ? { level: 'warn', message: cutoffMessage }
+        : classifyFreshness(freshness);
       const symbol = freshness?.symbol || payload.symbol?.AssetCode || els.symbol.value;
       const timeframe = freshness?.timeframe || payload.timeframe?.Code || els.timeframe.value;
       const strategy = freshness?.strategy || payload.strategy?.Slug || els.strategy.value;
@@ -1176,6 +1228,20 @@
       });
     }
 
+    function showLatestDay(candles) {
+      if (!candles.length) {
+        return;
+      }
+      const last = toChartUnix(candles[candles.length - 1].OpenTime);
+      const first = toChartUnix(candles[0].OpenTime);
+      const from = Math.max(first, last - 24 * 60 * 60);
+      try {
+        state.chart.timeScale().setVisibleRange({ from, to: last });
+      } catch (error) {
+        state.chart.timeScale().fitContent();
+      }
+    }
+
     async function refreshDashboard() {
       setStatus('Loading chart data');
 
@@ -1208,7 +1274,7 @@
           close: Number(item.Close)
         })));
         state.series.setMarkers(buildMarkers(signals));
-        state.chart.timeScale().fitContent();
+        showLatestDay(candles);
 
         els.chartTitle.textContent = `${payload.symbol.AssetCode} · ${payload.timeframe.Code} · ${payload.strategy.Name}`;
         els.chartSubtitle.textContent = `${fmtDate(payload.from)} → ${fmtDate(payload.to)} · ${candles.length} candles, ${signals.length} signals, ${trades.length} trades`;
@@ -1224,6 +1290,7 @@
     }
 
     els.refresh.addEventListener('click', () => {
+      els.to.value = defaultToDate();
       refreshDashboard().catch(error => setStatus(`Error: ${error.message}`, true));
     });
     window.addEventListener('resize', () => {
