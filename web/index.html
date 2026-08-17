@@ -672,12 +672,7 @@
         timeScale: {
           borderColor: line,
           timeVisible: true,
-          secondsVisible: true,
-          tickMarkFormatter: fmtChartTick
-        },
-        localization: {
-          locale: 'en-GB',
-          timeFormatter: time => fmtChartTime(time, true)
+          secondsVisible: true
         }
       };
     }
@@ -698,55 +693,11 @@
       return new Date(dateStr).toLocaleString('en-GB', { timeZone: 'Asia/Bangkok' });
     }
 
-    function chartTimeToDate(time) {
-      if (typeof time === 'number') {
-        return new Date(time * 1000);
-      }
-      if (time && typeof time === 'object' && time.year) {
-        return new Date(Date.UTC(time.year, time.month - 1, time.day));
-      }
-      return new Date(time);
-    }
+    const CHART_TZ_OFFSET_SEC = 7 * 60 * 60;
 
-    function fmtChartTime(time, withSeconds = true) {
-      return chartTimeToDate(time).toLocaleString('en-GB', {
-        timeZone: 'Asia/Bangkok',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: withSeconds ? '2-digit' : undefined,
-        hour12: false,
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
-    }
-
-    function fmtChartTick(time, tickMarkType) {
-      const date = chartTimeToDate(time);
-      const tz = { timeZone: 'Asia/Bangkok' };
-      const year = LightweightCharts.TickMarkType?.Year ?? 0;
-      const month = LightweightCharts.TickMarkType?.Month ?? 1;
-      const day = LightweightCharts.TickMarkType?.DayOfMonth ?? 2;
-      const clock = LightweightCharts.TickMarkType?.Time ?? 3;
-      if (tickMarkType === year) {
-        return date.toLocaleDateString('en-GB', { ...tz, year: 'numeric' });
-      }
-      if (tickMarkType === month) {
-        return date.toLocaleDateString('en-GB', { ...tz, month: 'short', year: '2-digit' });
-      }
-      if (tickMarkType === day) {
-        return date.toLocaleDateString('en-GB', { ...tz, day: '2-digit', month: 'short' });
-      }
-      if (tickMarkType === clock) {
-        return date.toLocaleTimeString('en-GB', { ...tz, hour: '2-digit', minute: '2-digit', hour12: false });
-      }
-      return date.toLocaleTimeString('en-GB', {
-        ...tz,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      });
+    function toChartUnix(value) {
+      const ms = typeof value === 'number' ? value * 1000 : new Date(value).getTime();
+      return Math.floor(ms / 1000) + CHART_TZ_OFFSET_SEC;
     }
 
     function fmtFreshness(value, suffix = '') {
@@ -1027,7 +978,7 @@
         }
 
         const match = state.signals.find(signal =>
-          Math.floor(new Date(signal.SignalTime).getTime() / 1000) === param.time
+          toChartUnix(signal.SignalTime) === param.time
         );
         if (match) {
           selectItem('signal', match.ID);
@@ -1185,7 +1136,7 @@
       return (signals || []).map(signal => {
         if (signal.SignalType === 'entry') {
           return {
-            time: Math.floor(new Date(signal.SignalTime).getTime() / 1000),
+            time: toChartUnix(signal.SignalTime),
             position: 'belowBar',
             color: '#1d8f5f',
             shape: 'arrowUp',
@@ -1194,7 +1145,7 @@
         }
         if (signal.SignalType === 'exit') {
           return {
-            time: Math.floor(new Date(signal.SignalTime).getTime() / 1000),
+            time: toChartUnix(signal.SignalTime),
             position: 'aboveBar',
             color: '#b53b2f',
             shape: 'arrowDown',
@@ -1203,7 +1154,7 @@
         }
         if (signal.Side === 'short') {
           return {
-            time: Math.floor(new Date(signal.SignalTime).getTime() / 1000),
+            time: toChartUnix(signal.SignalTime),
             position: 'aboveBar',
             color: '#2f6fed',
             shape: 'arrowDown',
@@ -1211,7 +1162,7 @@
           };
         }
         return {
-          time: Math.floor(new Date(signal.SignalTime).getTime() / 1000),
+          time: toChartUnix(signal.SignalTime),
           position: 'belowBar',
           color: '#1d8f5f',
           shape: 'arrowUp',
@@ -1245,7 +1196,7 @@
         }
 
         state.series.setData(candles.map(item => ({
-          time: Math.floor(new Date(item.OpenTime).getTime() / 1000),
+          time: toChartUnix(item.OpenTime),
           open: Number(item.Open),
           high: Number(item.High),
           low: Number(item.Low),
