@@ -821,17 +821,22 @@
         .replaceAll('"', '&quot;');
     }
 
+    function toDateTimeLocalValue(date) {
+      const pad = (value) => String(value).padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
     function defaultFromDate() {
       const date = new Date();
-      date.setUTCDate(date.getUTCDate() - 30);
-      date.setUTCMinutes(0, 0, 0);
-      return date.toISOString().slice(0, 16);
+      date.setDate(date.getDate() - 30);
+      date.setMinutes(0, 0, 0);
+      return toDateTimeLocalValue(date);
     }
 
     function defaultToDate() {
       const date = new Date();
-      date.setUTCSeconds(0, 0);
-      return date.toISOString().slice(0, 16);
+      date.setSeconds(0, 0);
+      return toDateTimeLocalValue(date);
     }
 
     function ensureDefaultRange() {
