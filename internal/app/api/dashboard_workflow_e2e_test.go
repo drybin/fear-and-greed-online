@@ -138,6 +138,11 @@ func TestDashboardWorkflowEndToEndAgainstSeededData(t *testing.T) {
 		"`/chart-data?${params.toString()}`",
 		"lightweight-charts",
 		"Asia/Bangkok",
+		"side-long",
+		"#2f6fed",
+		`id="themeToggle"`,
+		"data-theme",
+		"Max-Age=31536000",
 	} {
 		if !strings.Contains(body, needle) {
 			t.Fatalf("dashboard shell missing %q", needle)

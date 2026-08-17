@@ -68,7 +68,7 @@ func TestPrevDayRangeBreakoutV1BreakoutDown(t *testing.T) {
 	candles := []domain.Candle{
 		moscowHourCandle(prevDay, 10, 100, 110, 95, 105),
 		moscowHourCandle(prevDay, 14, 105, 108, 90, 100),
-		moscowHourCandle(currDay, 11, 92, 93, 88, 89), // close < prev low 90
+		moscowHourCandle(currDay, 11, 85, 93, 84, 89), // green candle, close < prev low 90
 	}
 
 	out, err := NewPrevDayRangeBreakoutV1().Run(RunInput{
@@ -86,6 +86,31 @@ func TestPrevDayRangeBreakoutV1BreakoutDown(t *testing.T) {
 	sig := out.Signals[0]
 	if sig.Type != "alert" || sig.Side != "short" || sig.Title != "Prev-day low breakout" {
 		t.Fatalf("unexpected signal: %#v", sig)
+	}
+}
+
+func TestPrevDayRangeBreakoutV1SkipsRedCandleBelowLow(t *testing.T) {
+	msk := mustMoscow()
+	prevDay := time.Date(2026, 7, 8, 0, 0, 0, 0, msk)
+	currDay := time.Date(2026, 7, 9, 0, 0, 0, 0, msk)
+
+	candles := []domain.Candle{
+		moscowHourCandle(prevDay, 10, 100, 110, 95, 105),
+		moscowHourCandle(prevDay, 14, 105, 108, 90, 100),
+		moscowHourCandle(currDay, 11, 92, 93, 88, 89), // red candle below prev low — skip
+	}
+
+	out, err := NewPrevDayRangeBreakoutV1().Run(RunInput{
+		StrategySlug: "prev-day-range-breakout-v1",
+		Symbol:       "BTC",
+		Timeframe:    "1h",
+		Candles:      candles,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(out.Signals) != 0 {
+		t.Fatalf("expected no signal for red candle below low, got %#v", out.Signals)
 	}
 }
 

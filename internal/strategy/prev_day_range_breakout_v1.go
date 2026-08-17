@@ -71,7 +71,7 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 			continue
 		}
 
-		if candle.Close < prev.low {
+		if candle.Close < prev.low && candle.Close > candle.Open {
 			out.Signals = append(out.Signals, domain.Signal{
 				DedupeKey: fmt.Sprintf("%s|%s|%s|alert|down|%s", input.StrategySlug, input.Symbol, input.Timeframe, candle.Time.UTC().Format(time.RFC3339)),
 				Time:      candle.Time,
@@ -80,11 +80,12 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 				Price:     candle.Close,
 				Status:    "confirmed",
 				Title:     "Prev-day low breakout",
-				Details:   "Close closed below previous Moscow day low",
+				Details:   "Green candle closed below previous Moscow day low",
 				Meta: map[string]any{
 					"prev_day": prevKey,
 					"day_high": prev.high,
 					"day_low":  prev.low,
+					"open":     candle.Open,
 					"close":    candle.Close,
 				},
 			})

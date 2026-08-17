@@ -4,9 +4,26 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fear and Greed Online</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/favicon.png">
+  <script>
+    (function () {
+      var match = document.cookie.match(/(?:^|; )theme=([^;]*)/);
+      var theme = match ? decodeURIComponent(match[1]) : 'light';
+      if (theme !== 'dark' && theme !== 'light') {
+        theme = 'light';
+      }
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
   <style>
     :root {
       --bg: #f5f1e8;
+      --page-bg:
+        radial-gradient(circle at top left, rgba(196, 91, 45, 0.16), transparent 28%),
+        radial-gradient(circle at top right, rgba(29, 143, 95, 0.12), transparent 24%),
+        linear-gradient(180deg, #f8f4ec, #efe5d5 70%);
       --panel: rgba(255, 252, 245, 0.92);
       --text: #1f1a14;
       --muted: #726456;
@@ -15,6 +32,40 @@
       --green: #1d8f5f;
       --red: #b53b2f;
       --shadow: 0 20px 60px rgba(73, 47, 24, 0.12);
+      --input-bg: #fffdf9;
+      --chart-bg: #fbf7f0;
+      --chart-text: #3b2e22;
+      --chart-grid: #eadfcd;
+      --item-bg: rgba(255,255,255,0.74);
+      --card-bg: rgba(255,255,255,0.72);
+      --meta-bg: rgba(255,255,255,0.8);
+      --panel-border: rgba(216, 199, 177, 0.9);
+      color-scheme: light;
+    }
+
+    html[data-theme="dark"] {
+      --bg: #12100e;
+      --page-bg:
+        radial-gradient(circle at top left, rgba(196, 91, 45, 0.22), transparent 32%),
+        radial-gradient(circle at top right, rgba(29, 143, 95, 0.14), transparent 28%),
+        linear-gradient(180deg, #191612, #0f0e0c 70%);
+      --panel: rgba(28, 24, 20, 0.92);
+      --text: #f3ece3;
+      --muted: #b3a394;
+      --line: #3f372f;
+      --accent: #e07a4c;
+      --green: #3cb87a;
+      --red: #e06a5c;
+      --shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      --input-bg: #221e1a;
+      --chart-bg: #1a1714;
+      --chart-text: #e7ddd1;
+      --chart-grid: #3a322a;
+      --item-bg: rgba(255,255,255,0.05);
+      --card-bg: rgba(255,255,255,0.05);
+      --meta-bg: rgba(0,0,0,0.28);
+      --panel-border: rgba(63, 55, 47, 0.95);
+      color-scheme: dark;
     }
 
     * { box-sizing: border-box; }
@@ -22,10 +73,7 @@
       margin: 0;
       font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
       color: var(--text);
-      background:
-        radial-gradient(circle at top left, rgba(196, 91, 45, 0.16), transparent 28%),
-        radial-gradient(circle at top right, rgba(29, 143, 95, 0.12), transparent 24%),
-        linear-gradient(180deg, #f8f4ec, #efe5d5 70%);
+      background: var(--page-bg);
       min-height: 100vh;
     }
 
@@ -44,7 +92,7 @@
 
     .hero-card, .panel {
       background: var(--panel);
-      border: 1px solid rgba(216, 199, 177, 0.9);
+      border: 1px solid var(--panel-border);
       box-shadow: var(--shadow);
       border-radius: 22px;
       backdrop-filter: blur(12px);
@@ -61,6 +109,28 @@
       letter-spacing: -0.04em;
       font-family: Georgia, "Iowan Old Style", serif;
       max-width: 10ch;
+    }
+
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .theme-toggle {
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--line);
+      align-self: flex-start;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 10px 14px;
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--accent);
     }
 
     .hero p {
@@ -118,7 +188,7 @@
       padding: 12px 14px;
       border: 1px solid var(--line);
       border-radius: 16px;
-      background: rgba(255,255,255,0.72);
+      background: var(--card-bg);
     }
 
     .freshness-label {
@@ -160,7 +230,7 @@
       font-size: 13px;
       line-height: 1.45;
       border: 1px solid var(--line);
-      background: rgba(255,255,255,0.72);
+      background: var(--card-bg);
     }
 
     .freshness-hint.ok {
@@ -235,7 +305,7 @@
       border: 1px solid var(--line);
       border-radius: 14px;
       padding: 12px 14px;
-      background: #fffdf9;
+      background: var(--input-bg);
       color: var(--text);
       font: inherit;
     }
@@ -282,7 +352,7 @@
       border-radius: 18px;
       overflow: hidden;
       border: 1px solid var(--line);
-      background: #fbf7f0;
+      background: var(--chart-bg);
     }
 
     .sidebar {
@@ -311,7 +381,7 @@
       padding: 12px;
       border: 1px solid var(--line);
       border-radius: 14px;
-      background: rgba(255,255,255,0.74);
+      background: var(--item-bg);
       cursor: pointer;
     }
 
@@ -322,6 +392,14 @@
     .item.selected {
       border-color: var(--accent);
       box-shadow: 0 0 0 1px rgba(196, 91, 45, 0.25);
+    }
+
+    .item.side-long {
+      border-color: rgba(29, 143, 95, 0.45);
+    }
+
+    .item.side-short {
+      border-color: rgba(47, 111, 237, 0.45);
     }
 
     .detail-grid {
@@ -358,7 +436,7 @@
       margin: 0;
       padding: 10px;
       border-radius: 12px;
-      background: rgba(255,255,255,0.8);
+      background: var(--meta-bg);
       border: 1px solid var(--line);
       font-size: 12px;
       overflow: auto;
@@ -410,7 +488,10 @@
   <div class="page">
     <section class="hero">
       <div class="hero-card">
-        <h1>Fear and Greed Online</h1>
+        <div class="hero-top">
+          <h1>Fear and Greed Online</h1>
+          <button type="button" id="themeToggle" class="theme-toggle" aria-pressed="false">Dark</button>
+        </div>
         <p>Interactive chart dashboard for Binance Spot market data, independent strategy signals, and recent run history. Built for a frozen top-50 universe with current active symbols mapped directly from the local PostgreSQL database.</p>
       </div>
       <div class="hero-meta hero-card">
@@ -550,8 +631,54 @@
       runs: document.getElementById('runs'),
       signals: document.getElementById('signals'),
       trades: document.getElementById('trades'),
-      chart: document.getElementById('chart')
+      chart: document.getElementById('chart'),
+      themeToggle: document.getElementById('themeToggle')
     };
+
+    function currentTheme() {
+      return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    }
+
+    function setTheme(theme) {
+      const next = theme === 'dark' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', next);
+      document.cookie = `theme=${encodeURIComponent(next)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      syncThemeToggle();
+      applyChartTheme();
+    }
+
+    function syncThemeToggle() {
+      const dark = currentTheme() === 'dark';
+      els.themeToggle.textContent = dark ? 'Light' : 'Dark';
+      els.themeToggle.setAttribute('aria-pressed', dark ? 'true' : 'false');
+    }
+
+    function chartLayoutOptions() {
+      const styles = getComputedStyle(document.documentElement);
+      const chartBg = styles.getPropertyValue('--chart-bg').trim();
+      const chartText = styles.getPropertyValue('--chart-text').trim();
+      const chartGrid = styles.getPropertyValue('--chart-grid').trim();
+      const line = styles.getPropertyValue('--line').trim();
+      return {
+        layout: {
+          background: { color: chartBg },
+          textColor: chartText
+        },
+        grid: {
+          vertLines: { color: chartGrid },
+          horzLines: { color: chartGrid }
+        },
+        rightPriceScale: { borderColor: line },
+        timeScale: { borderColor: line, timeVisible: true }
+      };
+    }
+
+    function applyChartTheme() {
+      if (!state.chart) {
+        return;
+      }
+      state.chart.applyOptions(chartLayoutOptions());
+    }
 
     function setStatus(text, isError = false) {
       els.status.textContent = text;
@@ -822,16 +949,7 @@
       }
 
       state.chart = LightweightCharts.createChart(els.chart, {
-        layout: {
-          background: { color: '#fbf7f0' },
-          textColor: '#3b2e22'
-        },
-        grid: {
-          vertLines: { color: '#eadfcd' },
-          horzLines: { color: '#eadfcd' }
-        },
-        rightPriceScale: { borderColor: '#d8c7b1' },
-        timeScale: { borderColor: '#d8c7b1', timeVisible: true },
+        ...chartLayoutOptions(),
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal }
       });
 
@@ -974,7 +1092,8 @@
       for (const item of items.slice(-16).reverse()) {
         const node = document.createElement('div');
         const selected = state.selected?.kind === 'signal' && state.selected.id === item.ID;
-        node.className = `item${selected ? ' selected' : ''}`;
+        const sideClass = item.Side === 'long' ? ' side-long' : item.Side === 'short' ? ' side-short' : '';
+        node.className = `item${sideClass}${selected ? ' selected' : ''}`;
         node.innerHTML = `
           <strong>${item.SignalType.toUpperCase()} · ${item.Side.toUpperCase()}</strong>
           <div class="meta-line">${fmtDate(item.SignalTime)}</div>
@@ -1003,13 +1122,42 @@
     }
 
     function buildMarkers(signals) {
-      return (signals || []).map(signal => ({
-        time: Math.floor(new Date(signal.SignalTime).getTime() / 1000),
-        position: signal.SignalType === 'entry' ? 'belowBar' : 'aboveBar',
-        color: signal.SignalType === 'entry' ? '#1d8f5f' : '#b53b2f',
-        shape: signal.SignalType === 'entry' ? 'arrowUp' : 'arrowDown',
-        text: signal.SignalType === 'entry' ? 'IN' : 'OUT'
-      }));
+      return (signals || []).map(signal => {
+        if (signal.SignalType === 'entry') {
+          return {
+            time: Math.floor(new Date(signal.SignalTime).getTime() / 1000),
+            position: 'belowBar',
+            color: '#1d8f5f',
+            shape: 'arrowUp',
+            text: 'IN'
+          };
+        }
+        if (signal.SignalType === 'exit') {
+          return {
+            time: Math.floor(new Date(signal.SignalTime).getTime() / 1000),
+            position: 'aboveBar',
+            color: '#b53b2f',
+            shape: 'arrowDown',
+            text: 'OUT'
+          };
+        }
+        if (signal.Side === 'short') {
+          return {
+            time: Math.floor(new Date(signal.SignalTime).getTime() / 1000),
+            position: 'aboveBar',
+            color: '#2f6fed',
+            shape: 'arrowDown',
+            text: 'LO'
+          };
+        }
+        return {
+          time: Math.floor(new Date(signal.SignalTime).getTime() / 1000),
+          position: 'belowBar',
+          color: '#1d8f5f',
+          shape: 'arrowUp',
+          text: 'HI'
+        };
+      });
     }
 
     async function refreshDashboard() {
@@ -1068,6 +1216,10 @@
       }
     });
 
+    syncThemeToggle();
+    els.themeToggle.addEventListener('click', () => {
+      setTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+    });
     bootstrap().catch(error => setStatus(`Error: ${error.message}`, true));
   </script>
 </body>
