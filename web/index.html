@@ -599,7 +599,9 @@
       series: null,
       signals: [],
       trades: [],
-      selected: null
+      selected: null,
+      candleTimes: [],
+      highlightLine: null
     };
 
     const els = {
@@ -1045,6 +1047,105 @@
       renderSignals(state.signals);
       renderTrades(state.trades);
       renderDetail();
+      highlightSelectionOnChart();
+    }
+
+    function clearChartHighlight() {
+      if (state.highlightLine && state.series) {
+        state.series.removePriceLine(state.highlightLine);
+        state.highlightLine = null;
+      }
+      if (state.chart && typeof state.chart.clearCrosshairPosition === 'function') {
+        state.chart.clearCrosshairPosition();
+      }
+    }
+
+    function selectionChartPoint() {
+      if (state.selected?.kind === 'signal') {
+        const signal = state.signals.find(item => item.ID === state.selected.id);
+        if (!signal) {
+          return null;
+        }
+        return {
+          time: toChartUnix(signal.SignalTime),
+          price: Number(signal.Price),
+          title: signal.Title || signal.SignalType || 'signal'
+        };
+      }
+      if (state.selected?.kind === 'trade') {
+        const trade = state.trades.find(item => item.ID === state.selected.id);
+        if (!trade) {
+          return null;
+        }
+        return {
+          time: toChartUnix(trade.EntryTime),
+          price: Number(trade.EntryPrice),
+          title: 'Trade entry'
+        };
+      }
+      return null;
+    }
+
+    function ensureTimeVisible(time) {
+      if (!state.chart) {
+        return;
+      }
+      const scale = state.chart.timeScale();
+      if (typeof scale.timeToCoordinate === 'function' && scale.timeToCoordinate(time) != null) {
+        return;
+      }
+
+      const logical = typeof scale.getVisibleLogicalRange === 'function'
+        ? scale.getVisibleLogicalRange()
+        : null;
+      const span = logical ? Math.max(24, logical.to - logical.from) : 96;
+      const index = state.candleTimes.indexOf(time);
+      if (index >= 0 && typeof scale.setVisibleLogicalRange === 'function') {
+        scale.setVisibleLogicalRange({
+          from: index - span / 2,
+          to: index + span / 2
+        });
+        return;
+      }
+
+      const pad = 12 * 60 * 60;
+      try {
+        scale.setVisibleRange({ from: time - pad, to: time + pad });
+      } catch (error) {
+        // Keep the current viewport if the library rejects the range.
+      }
+    }
+
+    function highlightSelectionOnChart() {
+      if (!state.chart || !state.series) {
+        return;
+      }
+
+      state.series.setMarkers(buildMarkers(state.signals));
+      clearChartHighlight();
+
+      const point = selectionChartPoint();
+      if (!point || Number.isNaN(point.time) || !Number.isFinite(point.price)) {
+        return;
+      }
+
+      ensureTimeVisible(point.time);
+      const applyCrosshair = () => {
+        if (!state.chart || typeof state.chart.setCrosshairPosition !== 'function') {
+          return;
+        }
+        state.chart.setCrosshairPosition(point.price, point.time, state.series);
+      };
+      applyCrosshair();
+      requestAnimationFrame(applyCrosshair);
+      state.highlightLine = state.series.createPriceLine({
+        price: point.price,
+        color: '#f0b429',
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: point.title
+      });
     }
 
     function renderDetail() {
@@ -1189,43 +1290,62 @@
       }
     }
 
-    function buildMarkers(signals) {
-      return (signals || []).map(signal => {
-        if (signal.SignalType === 'entry') {
-          return {
-            time: toChartUnix(signal.SignalTime),
-            position: 'belowBar',
-            color: '#1d8f5f',
-            shape: 'arrowUp',
-            text: 'IN'
-          };
-        }
-        if (signal.SignalType === 'exit') {
-          return {
-            time: toChartUnix(signal.SignalTime),
-            position: 'aboveBar',
-            color: '#b53b2f',
-            shape: 'arrowDown',
-            text: 'OUT'
-          };
-        }
-        if (signal.Side === 'short') {
-          return {
-            time: toChartUnix(signal.SignalTime),
-            position: 'aboveBar',
-            color: '#2f6fed',
-            shape: 'arrowDown',
-            text: 'LO'
-          };
-        }
+    function markerForSignal(signal, selected) {
+      const highlight = selected
+        ? { color: '#f0b429', size: 2 }
+        : {};
+      if (signal.SignalType === 'entry') {
         return {
           time: toChartUnix(signal.SignalTime),
           position: 'belowBar',
           color: '#1d8f5f',
           shape: 'arrowUp',
-          text: 'HI'
+          text: selected ? 'IN ●' : 'IN',
+          ...highlight
         };
-      });
+      }
+      if (signal.SignalType === 'exit') {
+        return {
+          time: toChartUnix(signal.SignalTime),
+          position: 'aboveBar',
+          color: '#b53b2f',
+          shape: 'arrowDown',
+          text: selected ? 'OUT ●' : 'OUT',
+          ...highlight
+        };
+      }
+      if (signal.Side === 'short') {
+        return {
+          time: toChartUnix(signal.SignalTime),
+          position: 'aboveBar',
+          color: '#2f6fed',
+          shape: 'arrowDown',
+          text: selected ? 'LO ●' : 'LO',
+          ...highlight
+        };
+      }
+      return {
+        time: toChartUnix(signal.SignalTime),
+        position: 'belowBar',
+        color: '#1d8f5f',
+        shape: 'arrowUp',
+        text: selected ? 'HI ●' : 'HI',
+        ...highlight
+      };
+    }
+
+    function buildMarkers(signals) {
+      const selectedId = state.selected?.kind === 'signal' ? state.selected.id : null;
+      const markers = (signals || []).map(signal => markerForSignal(signal, signal.ID === selectedId));
+      if (selectedId == null) {
+        return markers;
+      }
+      const selectedIndex = (signals || []).findIndex(signal => signal.ID === selectedId);
+      if (selectedIndex >= 0) {
+        const [selectedMarker] = markers.splice(selectedIndex, 1);
+        markers.push(selectedMarker);
+      }
+      return markers;
     }
 
     function showLatestDay(candles) {
@@ -1266,15 +1386,21 @@
           }
         }
 
-        state.series.setData(candles.map(item => ({
-          time: toChartUnix(item.OpenTime),
+        state.candleTimes = candles.map(item => toChartUnix(item.OpenTime));
+        state.series.setData(candles.map((item, index) => ({
+          time: state.candleTimes[index],
           open: Number(item.Open),
           high: Number(item.High),
           low: Number(item.Low),
           close: Number(item.Close)
         })));
-        state.series.setMarkers(buildMarkers(signals));
-        showLatestDay(candles);
+        if (state.selected) {
+          highlightSelectionOnChart();
+        } else {
+          clearChartHighlight();
+          state.series.setMarkers(buildMarkers(signals));
+          showLatestDay(candles);
+        }
 
         els.chartTitle.textContent = `${payload.symbol.AssetCode} · ${payload.timeframe.Code} · ${payload.strategy.Name}`;
         els.chartSubtitle.textContent = `${fmtDate(payload.from)} → ${fmtDate(payload.to)} · ${candles.length} candles, ${signals.length} signals, ${trades.length} trades`;
