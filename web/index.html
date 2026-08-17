@@ -414,6 +414,27 @@
       border-color: rgba(47, 111, 237, 0.45);
     }
 
+    .item-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .signal-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+    }
+
+    .signal-dot-entry {
+      background: #1d8f5f;
+    }
+
+    .signal-dot-exit {
+      background: #b53b2f;
+    }
+
     .detail-grid {
       display: grid;
       gap: 10px;
@@ -1276,6 +1297,31 @@
       els.metricLatestCandle.textContent = fmtFreshness(freshness?.latest_candle_time);
     }
 
+    function signalDotClass(item) {
+      const type = String(item?.SignalType || '').toLowerCase();
+      if (type === 'exit') {
+        return 'signal-dot-exit';
+      }
+      if (type === 'entry') {
+        return 'signal-dot-entry';
+      }
+      if (type === 'alert' && item.Side === 'short') {
+        return 'signal-dot-exit';
+      }
+      if (type === 'alert' && item.Side === 'long') {
+        return 'signal-dot-entry';
+      }
+      return '';
+    }
+
+    function signalDotHTML(item) {
+      const cls = signalDotClass(item);
+      if (!cls) {
+        return '';
+      }
+      return `<span class="signal-dot ${cls}" aria-hidden="true"></span>`;
+    }
+
     function renderSignalsNow(items) {
       els.signalsNow.innerHTML = '';
       const rows = items || [];
@@ -1291,7 +1337,7 @@
         const sideClass = item.Side === 'long' ? ' side-long' : item.Side === 'short' ? ' side-short' : '';
         node.className = `item${sideClass}${selected ? ' selected' : ''}`;
         node.innerHTML = `
-          <strong>${escapeHTML(item.AssetCode)} · ${escapeHTML(item.Timeframe)} · ${escapeHTML(item.SignalType.toUpperCase())} · ${escapeHTML(item.Side.toUpperCase())}</strong>
+          <div class="item-head">${signalDotHTML(item)}<strong>${escapeHTML(item.AssetCode)} · ${escapeHTML(item.Timeframe)} · ${escapeHTML(item.SignalType.toUpperCase())} · ${escapeHTML(item.Side.toUpperCase())}</strong></div>
           <div class="meta-line">${escapeHTML(item.StrategyName || item.StrategySlug)}</div>
           <div class="meta-line">${fmtDate(item.SignalTime)}</div>
           <div class="meta-line">${escapeHTML(item.Title)} @ ${fmtPrice(item.Price)}</div>
@@ -1329,7 +1375,7 @@
         const sideClass = item.Side === 'long' ? ' side-long' : item.Side === 'short' ? ' side-short' : '';
         node.className = `item${sideClass}${selected ? ' selected' : ''}`;
         node.innerHTML = `
-          <strong>${selected ? '● ' : ''}${item.SignalType.toUpperCase()} · ${item.Side.toUpperCase()}</strong>
+          <div class="item-head">${signalDotHTML(item)}<strong>${item.SignalType.toUpperCase()} · ${item.Side.toUpperCase()}</strong></div>
           <div class="meta-line">${fmtDate(item.SignalTime)}</div>
           <div class="meta-line">${item.Title} @ ${fmtPrice(item.Price)}</div>
         `;
