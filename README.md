@@ -177,10 +177,18 @@ Sync one asset first for local iteration:
 go run ./cmd/worker sync-candles --asset BTC
 ```
 
-Sync the full active universe:
+Sync the full active universe in one worker run:
 
 ```bash
 make sync-candles
+```
+
+Or sync each of the 38 active symbols separately (one failed pair does not abort the rest):
+
+```bash
+./scripts/sync-active-candles.sh
+# or
+make sync-active
 ```
 
 Full-universe sync is slower and makes many Binance API requests across 38 symbols and 3 timeframes. Prefer scoped sync during development.

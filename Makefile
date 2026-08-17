@@ -37,7 +37,8 @@ help:
 	@echo "Application:"
 	@echo "  api                Start API and dashboard"
 	@echo "  worker             Run worker bootstrap check"
-	@echo "  sync-candles       Sync candles for active universe"
+	@echo "  sync-candles       Sync candles for active universe (one worker run)"
+	@echo "  sync-active        Sync each active symbol separately (resilient)"
 	@echo "  list-active-symbols"
 	@echo "  run-strategies     Recalculate active strategies"
 	@echo ""
@@ -122,7 +123,7 @@ bootstrap: postgres-up migrate-up
 # Application
 ################################################################################################################
 
-.PHONY: api worker sync-candles list-active-symbols run-strategies dev
+.PHONY: api worker sync-candles sync-active list-active-symbols run-strategies dev
 api:
 	$(call _info,Starting API...)
 	@go run ./cmd/api
@@ -134,6 +135,10 @@ worker:
 sync-candles:
 	$(call _info,Syncing candles...)
 	@go run ./cmd/worker sync-candles
+
+sync-active:
+	$(call _info,Syncing candles per active symbol...)
+	@./scripts/sync-active-candles.sh
 
 list-active-symbols:
 	@go run ./cmd/worker list-active-symbols
