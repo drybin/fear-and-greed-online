@@ -1335,9 +1335,6 @@
         `;
         node.addEventListener('click', () => selectItem('signal', item.ID));
         els.signals.appendChild(node);
-        if (selected) {
-          requestAnimationFrame(() => node.scrollIntoView({ block: 'nearest' }));
-        }
       }
     }
 
