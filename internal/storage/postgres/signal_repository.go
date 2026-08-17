@@ -158,3 +158,51 @@ func (r *SignalRepository) ListRange(ctx context.Context, strategyID, symbolID, 
 
 	return items, rows.Err()
 }
+
+func (r *SignalRepository) ListOnLatestCandles(ctx context.Context) ([]LiveSignalRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		WITH latest AS (
+			SELECT symbol_id, timeframe_id, MAX(open_time) AS open_time
+			FROM candles
+			GROUP BY symbol_id, timeframe_id
+		)
+		SELECT
+			s.id, s.strategy_id, s.symbol_id, s.timeframe_id, s.dedupe_key,
+			s.signal_time, s.signal_type, s.side, s.price, s.confidence, s.status, s.title, s.details, s.meta,
+			sy.asset_code, tf.code, st.slug, st.name
+		FROM signals s
+		INNER JOIN latest ON latest.symbol_id = s.symbol_id
+			AND latest.timeframe_id = s.timeframe_id
+			AND latest.open_time = s.signal_time
+		INNER JOIN symbols sy ON sy.id = s.symbol_id AND sy.is_active = TRUE
+		INNER JOIN timeframes tf ON tf.id = s.timeframe_id
+		INNER JOIN strategies st ON st.id = s.strategy_id AND st.is_active = TRUE
+		ORDER BY s.signal_time DESC, sy.asset_code ASC, st.slug ASC, s.id ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list signals on latest candles: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var items []LiveSignalRecord
+	for rows.Next() {
+		var item LiveSignalRecord
+		var metaJSON []byte
+		if err := rows.Scan(
+			&item.ID, &item.StrategyID, &item.SymbolID, &item.TimeframeID, &item.DedupeKey,
+			&item.SignalTime, &item.SignalType, &item.Side, &item.Price, &item.Confidence, &item.Status, &item.Title, &item.Details, &metaJSON,
+			&item.AssetCode, &item.Timeframe, &item.StrategySlug, &item.StrategyName,
+		); err != nil {
+			return nil, fmt.Errorf("scan live signal record: %w", err)
+		}
+		meta, err := decodeJSONMap(metaJSON)
+		if err != nil {
+			return nil, fmt.Errorf("decode live signal meta: %w", err)
+		}
+		item.Meta = meta
+		item.SignalTime = item.SignalTime.UTC()
+		items = append(items, item)
+	}
+
+	return items, rows.Err()
+}

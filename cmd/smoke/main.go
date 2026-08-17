@@ -201,7 +201,7 @@ func run() error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("dashboard shell status: got %d", resp.StatusCode)
 	}
-	for _, needle := range []string{`id="chart"`, `id="symbol"`, "lightweight-charts"} {
+	for _, needle := range []string{`id="chart"`, `id="symbol"`, `id="signalsNow"`, "lightweight-charts"} {
 		if !strings.Contains(string(body), needle) {
 			return fmt.Errorf("dashboard shell missing %q", needle)
 		}

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	marketdata "github.com/drybin/fear-and-greed-online/internal/domain/marketdata"
+	strategydomain "github.com/drybin/fear-and-greed-online/internal/domain/strategy"
 	strategysvc "github.com/drybin/fear-and-greed-online/internal/services/strategy"
 	"github.com/drybin/fear-and-greed-online/internal/storage/postgres"
 	engine "github.com/drybin/fear-and-greed-online/internal/strategy"
@@ -126,6 +127,7 @@ func TestDashboardWorkflowEndToEndAgainstSeededData(t *testing.T) {
 
 	body := rec.Body.String()
 	for _, needle := range []string{
+		`id="signalsNow"`,
 		`id="symbol"`,
 		`id="timeframe"`,
 		`id="strategy"`,
@@ -163,6 +165,98 @@ func TestChartEndpointsRejectUnsupportedStrategyTimeframeCombination(t *testing.
 	}
 	if !strings.Contains(rec.Body.String(), "does not support timeframe") {
 		t.Fatalf("expected unsupported timeframe error, got body=%s", rec.Body.String())
+	}
+}
+
+func TestSignalsNowEndpointReturnsOnlyLatestCandleHits(t *testing.T) {
+	db := testutil.CreateTestDatabase(t)
+	ctx := context.Background()
+
+	symbols := postgres.NewSymbolRepository(db)
+	timeframes := postgres.NewTimeframeRepository(db)
+	strategies := postgres.NewStrategyRepository(db)
+	candles := postgres.NewCandleRepository(db)
+	runs := postgres.NewStrategyRunRepository(db)
+	signalRepo := postgres.NewSignalRepository(db)
+
+	btc, err := symbols.FindByAssetCode(ctx, "BTC")
+	if err != nil || btc == nil {
+		t.Fatalf("find BTC: %v", err)
+	}
+	hourly, err := timeframes.FindByCode(ctx, "1h")
+	if err != nil || hourly == nil {
+		t.Fatalf("find 1h: %v", err)
+	}
+	strategy, err := strategies.FindBySlug(ctx, "trend-long-v1")
+	if err != nil || strategy == nil {
+		t.Fatalf("find strategy: %v", err)
+	}
+
+	older := time.Date(2026, 8, 17, 8, 0, 0, 0, time.UTC)
+	latest := older.Add(time.Hour)
+	if err := candles.UpsertMany(ctx, []marketdata.Candle{
+		{
+			SymbolID: btc.ID, TimeframeID: hourly.ID, OpenTime: older, CloseTime: older.Add(time.Hour - time.Millisecond),
+			Open: "100", High: "100", Low: "100", Close: "100", Volume: "1", QuoteVolume: "1", Trades: 1,
+			TakerBuyBaseVolume: "1", TakerBuyQuoteVolume: "1", IsClosed: true, Source: "test",
+		},
+		{
+			SymbolID: btc.ID, TimeframeID: hourly.ID, OpenTime: latest, CloseTime: latest.Add(time.Hour - time.Millisecond),
+			Open: "110", High: "110", Low: "110", Close: "110", Volume: "1", QuoteVolume: "1", Trades: 1,
+			TakerBuyBaseVolume: "1", TakerBuyQuoteVolume: "1", IsClosed: true, Source: "test",
+		},
+	}); err != nil {
+		t.Fatalf("seed candles: %v", err)
+	}
+
+	runID, err := runs.Start(ctx, strategy.ID, btc.ID, hourly.ID, strategy.DefaultParams, &older, &latest, 2)
+	if err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	if err := signalRepo.UpsertMany(ctx, runID, strategy.ID, btc.ID, hourly.ID, []strategydomain.Signal{
+		{
+			DedupeKey: "trend-long-v1|BTC|1h|stale|" + older.Format(time.RFC3339),
+			Time:      older,
+			Type:      "alert",
+			Side:      "long",
+			Price:     100,
+			Status:    "confirmed",
+			Title:     "stale",
+			Details:   "old candle",
+		},
+		{
+			DedupeKey: "trend-long-v1|BTC|1h|live|" + latest.Format(time.RFC3339),
+			Time:      latest,
+			Type:      "alert",
+			Side:      "short",
+			Price:     110,
+			Status:    "confirmed",
+			Title:     "live",
+			Details:   "latest candle",
+		},
+	}); err != nil {
+		t.Fatalf("seed signals: %v", err)
+	}
+
+	mux := newTestMux(t, db)
+	var payload struct {
+		Items []struct {
+			Title        string  `json:"Title"`
+			AssetCode    string  `json:"AssetCode"`
+			Timeframe    string  `json:"Timeframe"`
+			StrategySlug string  `json:"StrategySlug"`
+			Side         string  `json:"Side"`
+			Price        float64 `json:"Price"`
+		} `json:"items"`
+		Count int `json:"count"`
+	}
+	decodeGET(t, mux, "/signals/now", &payload)
+	if payload.Count != 1 || len(payload.Items) != 1 {
+		t.Fatalf("expected one live signal, got count=%d items=%#v", payload.Count, payload.Items)
+	}
+	item := payload.Items[0]
+	if item.Title != "live" || item.AssetCode != "BTC" || item.Timeframe != "1h" || item.StrategySlug != "trend-long-v1" || item.Side != "short" {
+		t.Fatalf("unexpected live signal: %#v", item)
 	}
 }
 

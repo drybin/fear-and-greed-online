@@ -133,6 +133,18 @@ func registerRoutes(mux *http.ServeMux, db *sql.DB) {
 		})
 	})
 
+	mux.HandleFunc("/signals/now", func(w http.ResponseWriter, r *http.Request) {
+		items, err := signals.ListOnLatestCandles(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"items": items,
+			"count": len(items),
+		})
+	})
+
 	mux.HandleFunc("/signals", func(w http.ResponseWriter, r *http.Request) {
 		ctxData, err := resolveChartContext(r, symbols, timeframes, strategies, true)
 		if err != nil {

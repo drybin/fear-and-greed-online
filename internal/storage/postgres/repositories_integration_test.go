@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -156,6 +157,115 @@ func TestSignalRepositoryDedupeKeyPreventsDuplicateMarkers(t *testing.T) {
 	}
 	if items[0].Details != "updated" {
 		t.Fatalf("expected updated signal details, got %q", items[0].Details)
+	}
+}
+
+func TestSignalRepositoryListOnLatestCandles(t *testing.T) {
+	db := testutil.CreateTestDatabase(t)
+	ctx := context.Background()
+
+	symbols := postgres.NewSymbolRepository(db)
+	timeframes := postgres.NewTimeframeRepository(db)
+	strategies := postgres.NewStrategyRepository(db)
+	candles := postgres.NewCandleRepository(db)
+	runs := postgres.NewStrategyRunRepository(db)
+	signals := postgres.NewSignalRepository(db)
+
+	btc, err := symbols.FindByAssetCode(ctx, "BTC")
+	if err != nil || btc == nil {
+		t.Fatalf("find BTC: %v", err)
+	}
+	eth, err := symbols.FindByAssetCode(ctx, "ETH")
+	if err != nil || eth == nil {
+		t.Fatalf("find ETH: %v", err)
+	}
+	hourly, err := timeframes.FindByCode(ctx, "1h")
+	if err != nil || hourly == nil {
+		t.Fatalf("find 1h: %v", err)
+	}
+	trend, err := strategies.FindBySlug(ctx, "trend-long-v1")
+	if err != nil || trend == nil {
+		t.Fatalf("find trend-long-v1: %v", err)
+	}
+	breakout, err := strategies.FindBySlug(ctx, "prev-day-range-breakout-v1")
+	if err != nil || breakout == nil {
+		t.Fatalf("find prev-day-range-breakout-v1: %v", err)
+	}
+
+	older := time.Date(2026, 8, 17, 8, 0, 0, 0, time.UTC)
+	latest := older.Add(time.Hour)
+	if err := candles.UpsertMany(ctx, []marketdata.Candle{
+		testCandle(btc.ID, hourly.ID, older, "100"),
+		testCandle(btc.ID, hourly.ID, latest, "110"),
+		testCandle(eth.ID, hourly.ID, older, "200"),
+		testCandle(eth.ID, hourly.ID, latest, "210"),
+	}); err != nil {
+		t.Fatalf("seed candles: %v", err)
+	}
+
+	insertTestSignal(t, ctx, runs, signals, trend, btc, hourly, older, "stale-btc", 100)
+	insertTestSignal(t, ctx, runs, signals, trend, btc, hourly, latest, "live-btc-trend", 110)
+	insertTestSignal(t, ctx, runs, signals, breakout, btc, hourly, latest, "live-btc-breakout", 111)
+	insertTestSignal(t, ctx, runs, signals, trend, eth, hourly, latest, "live-eth", 210)
+
+	items, err := signals.ListOnLatestCandles(ctx)
+	if err != nil {
+		t.Fatalf("list on latest candles: %v", err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("expected 3 live signals, got %d: %#v", len(items), items)
+	}
+
+	got := map[string]postgres.LiveSignalRecord{}
+	for _, item := range items {
+		got[item.Title] = item
+		if item.SignalTime.Location() != time.UTC {
+			t.Fatalf("expected UTC signal time, got %s", item.SignalTime.Location())
+		}
+	}
+	if _, ok := got["stale-btc"]; ok {
+		t.Fatal("did not expect a signal from a non-latest candle")
+	}
+	if got["live-btc-trend"].AssetCode != "BTC" || got["live-btc-trend"].Timeframe != "1h" || got["live-btc-trend"].StrategySlug != "trend-long-v1" {
+		t.Fatalf("unexpected BTC trend live signal: %#v", got["live-btc-trend"])
+	}
+	if got["live-btc-breakout"].StrategySlug != "prev-day-range-breakout-v1" {
+		t.Fatalf("unexpected BTC breakout live signal: %#v", got["live-btc-breakout"])
+	}
+	if got["live-eth"].AssetCode != "ETH" || got["live-eth"].Price != 210 {
+		t.Fatalf("unexpected ETH live signal: %#v", got["live-eth"])
+	}
+}
+
+func insertTestSignal(
+	t *testing.T,
+	ctx context.Context,
+	runs *postgres.StrategyRunRepository,
+	signals *postgres.SignalRepository,
+	strategy *domain.Definition,
+	symbol *marketdata.Symbol,
+	timeframe *marketdata.Timeframe,
+	at time.Time,
+	title string,
+	price float64,
+) {
+	t.Helper()
+
+	runID, err := runs.Start(ctx, strategy.ID, symbol.ID, timeframe.ID, strategy.DefaultParams, &at, &at, 2)
+	if err != nil {
+		t.Fatalf("start run for %s: %v", title, err)
+	}
+	if err := signals.UpsertMany(ctx, runID, strategy.ID, symbol.ID, timeframe.ID, []domain.Signal{{
+		DedupeKey: fmt.Sprintf("%s|%s|%s|%s|%s", strategy.Slug, symbol.AssetCode, timeframe.Code, title, at.Format(time.RFC3339)),
+		Time:      at,
+		Type:      "alert",
+		Side:      "long",
+		Price:     price,
+		Status:    "confirmed",
+		Title:     title,
+		Details:   "test",
+	}}); err != nil {
+		t.Fatalf("insert signal %s: %v", title, err)
 	}
 }
 

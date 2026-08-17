@@ -58,3 +58,11 @@ type IngestionJobSummary struct {
 	LoadedTo      *time.Time
 	CandlesLoaded int
 }
+
+type LiveSignalRecord struct {
+	SignalRecord
+	AssetCode    string
+	Timeframe    string
+	StrategySlug string
+	StrategyName string
+}

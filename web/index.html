@@ -371,6 +371,10 @@
       letter-spacing: 0.02em;
     }
 
+    #signalsNowHint {
+      margin: -4px 0 12px;
+    }
+
     .list {
       display: grid;
       gap: 10px;
@@ -390,9 +394,16 @@
       border-color: var(--accent);
     }
 
-    .item.selected {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 1px rgba(196, 91, 45, 0.25);
+    .item.selected,
+    .item.side-long.selected,
+    .item.side-short.selected {
+      border-color: #f0b429;
+      background: rgba(240, 180, 41, 0.18);
+      box-shadow: 0 0 0 2px rgba(240, 180, 41, 0.4);
+    }
+
+    .item.selected strong {
+      color: #f0b429;
     }
 
     .item.side-long {
@@ -570,6 +581,11 @@
 
       <div class="sidebar">
         <div class="panel">
+          <h2>Signals Now</h2>
+          <div class="meta-line" id="signalsNowHint">Signals that fired on the latest known candle, across all coins and strategies.</div>
+          <div id="signalsNow" class="list"></div>
+        </div>
+        <div class="panel">
           <h2>Inspection</h2>
           <div id="detailEmpty" class="meta-line">Select a signal or trade to inspect details.</div>
           <div id="detailContent" class="detail-grid" hidden></div>
@@ -601,7 +617,8 @@
       trades: [],
       selected: null,
       candleTimes: [],
-      highlightLine: null
+      highlightLine: null,
+      liveSignals: []
     };
 
     const els = {
@@ -633,6 +650,8 @@
       detailContent: document.getElementById('detailContent'),
       runs: document.getElementById('runs'),
       signals: document.getElementById('signals'),
+      signalsNow: document.getElementById('signalsNow'),
+      signalsNowHint: document.getElementById('signalsNowHint'),
       trades: document.getElementById('trades'),
       chart: document.getElementById('chart'),
       themeToggle: document.getElementById('themeToggle')
@@ -1045,6 +1064,7 @@
     function selectItem(kind, id) {
       state.selected = { kind, id };
       renderSignals(state.signals);
+      renderSignalsNow(state.liveSignals);
       renderTrades(state.trades);
       renderDetail();
       highlightSelectionOnChart();
@@ -1256,20 +1276,68 @@
       els.metricLatestCandle.textContent = fmtFreshness(freshness?.latest_candle_time);
     }
 
-    function renderSignals(items) {
-      els.signals.innerHTML = '';
-      for (const item of items.slice(-16).reverse()) {
+    function renderSignalsNow(items) {
+      els.signalsNow.innerHTML = '';
+      const rows = items || [];
+      els.signalsNowHint.textContent = rows.length
+        ? `${rows.length} signal${rows.length === 1 ? '' : 's'} on the latest known candle, across all coins and strategies.`
+        : 'No strategies fired on the latest known candle.';
+      if (!rows.length) {
+        return;
+      }
+      for (const item of rows) {
         const node = document.createElement('div');
         const selected = state.selected?.kind === 'signal' && state.selected.id === item.ID;
         const sideClass = item.Side === 'long' ? ' side-long' : item.Side === 'short' ? ' side-short' : '';
         node.className = `item${sideClass}${selected ? ' selected' : ''}`;
         node.innerHTML = `
-          <strong>${item.SignalType.toUpperCase()} · ${item.Side.toUpperCase()}</strong>
+          <strong>${escapeHTML(item.AssetCode)} · ${escapeHTML(item.Timeframe)} · ${escapeHTML(item.SignalType.toUpperCase())} · ${escapeHTML(item.Side.toUpperCase())}</strong>
+          <div class="meta-line">${escapeHTML(item.StrategyName || item.StrategySlug)}</div>
+          <div class="meta-line">${fmtDate(item.SignalTime)}</div>
+          <div class="meta-line">${escapeHTML(item.Title)} @ ${fmtPrice(item.Price)}</div>
+        `;
+        node.addEventListener('click', () => {
+          openLiveSignal(item).catch(error => setStatus(`Error: ${error.message}`, true));
+        });
+        els.signalsNow.appendChild(node);
+      }
+    }
+
+    async function openLiveSignal(item) {
+      els.symbol.value = item.AssetCode;
+      els.timeframe.value = item.Timeframe;
+      syncStrategyOptions();
+      els.strategy.value = item.StrategySlug;
+      els.to.value = defaultToDate();
+      await refreshDashboard();
+      selectItem('signal', item.ID);
+    }
+
+    function renderSignals(items) {
+      els.signals.innerHTML = '';
+      const selectedId = state.selected?.kind === 'signal' ? state.selected.id : null;
+      const rows = (items || []).slice(-16).reverse();
+      if (selectedId != null && !rows.some(item => item.ID === selectedId)) {
+        const extra = (items || []).find(item => item.ID === selectedId);
+        if (extra) {
+          rows.unshift(extra);
+        }
+      }
+      for (const item of rows) {
+        const node = document.createElement('div');
+        const selected = selectedId === item.ID;
+        const sideClass = item.Side === 'long' ? ' side-long' : item.Side === 'short' ? ' side-short' : '';
+        node.className = `item${sideClass}${selected ? ' selected' : ''}`;
+        node.innerHTML = `
+          <strong>${selected ? '● ' : ''}${item.SignalType.toUpperCase()} · ${item.Side.toUpperCase()}</strong>
           <div class="meta-line">${fmtDate(item.SignalTime)}</div>
           <div class="meta-line">${item.Title} @ ${fmtPrice(item.Price)}</div>
         `;
         node.addEventListener('click', () => selectItem('signal', item.ID));
         els.signals.appendChild(node);
+        if (selected) {
+          requestAnimationFrame(() => node.scrollIntoView({ block: 'nearest' }));
+        }
       }
     }
 
@@ -1367,7 +1435,10 @@
 
       try {
         const params = buildChartParams();
-        const payload = await fetchJSON(`/chart-data?${params.toString()}`);
+        const [payload, livePayload] = await Promise.all([
+          fetchJSON(`/chart-data?${params.toString()}`),
+          fetchJSON('/signals/now')
+        ]);
         const candles = payload.candles || [];
         const signals = payload.signals || [];
         const trades = payload.trades || [];
@@ -1376,6 +1447,7 @@
 
         state.signals = signals;
         state.trades = trades;
+        state.liveSignals = livePayload.items || [];
         state.selected = null;
         if (previousSelection) {
           const stillExists = previousSelection.kind === 'signal'
@@ -1407,6 +1479,7 @@
         renderFreshness(payload.freshness || {}, payload);
         renderRuns(runs);
         renderSignals(signals);
+        renderSignalsNow(state.liveSignals);
         renderTrades(trades);
         renderDetail();
         setStatus('Dashboard ready');
