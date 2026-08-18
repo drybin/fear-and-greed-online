@@ -101,7 +101,7 @@ go run ./cmd/worker run-strategies --strategy breakout-retest-v1 --asset ETH
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `APP_PORT` | `8080` | API and dashboard port |
+| `APP_PORT` | `80` | API and dashboard port |
 | `POSTGRES_HOST` | `127.0.0.1` | PostgreSQL host |
 | `POSTGRES_PORT` | `5433` | Host port for Docker PostgreSQL (avoids conflicts with a local Postgres on `5432`) |
 | `POSTGRES_DB` | `fear_and_greed_online` | Database name |

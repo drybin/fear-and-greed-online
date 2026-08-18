@@ -28,7 +28,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		AppEnv:           envOrDefault("APP_ENV", "development"),
 		AppHost:          envOrDefault("APP_HOST", "0.0.0.0"),
-		AppPort:          envOrDefault("APP_PORT", "8080"),
+		AppPort:          envOrDefault("APP_PORT", "80"),
 		BinanceBaseURL:   envOrDefault("BINANCE_BASE_URL", "https://api.binance.com"),
 		SyncBackfillDays: intEnvOrDefault("SYNC_BACKFILL_DAYS", 30),
 		Postgres: PostgresConfig{
