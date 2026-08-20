@@ -24,6 +24,11 @@ type Runner struct {
 	trades       *postgres.TradeRepository
 	registry     *engine.Registry
 	lookbackDays int
+	notifier     EntrySignalNotifier
+}
+
+type EntrySignalNotifier interface {
+	NotifyEntries(ctx context.Context, runID int64) error
 }
 
 func NewRunner(
@@ -36,6 +41,7 @@ func NewRunner(
 	trades *postgres.TradeRepository,
 	registry *engine.Registry,
 	lookbackDays int,
+	notifier EntrySignalNotifier,
 ) *Runner {
 	return &Runner{
 		strategies:   strategies,
@@ -47,6 +53,7 @@ func NewRunner(
 		trades:       trades,
 		registry:     registry,
 		lookbackDays: lookbackDays,
+		notifier:     notifier,
 	}
 }
 
@@ -174,6 +181,11 @@ func (r *Runner) runOne(ctx context.Context, def domain.Definition, impl engine.
 
 	if err := r.runs.Complete(ctx, runID, len(output.Signals), len(output.Trades)); err != nil {
 		return err
+	}
+	if r.notifier != nil {
+		if err := r.notifier.NotifyEntries(ctx, runID); err != nil {
+			return fmt.Errorf("notify entry signals for run %d: %w", runID, err)
+		}
 	}
 
 	log.Printf(

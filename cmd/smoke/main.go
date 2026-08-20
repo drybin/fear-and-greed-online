@@ -105,6 +105,7 @@ func run() error {
 			engine.NewPrevDayRangeBreakoutV1(),
 		),
 		cfg.SyncBackfillDays,
+		nil,
 	)
 	if err := runner.Run(context.Background(), smokeStrategy, smokeAsset); err != nil {
 		return fmt.Errorf("run strategies: %w", err)

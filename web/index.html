@@ -639,7 +639,8 @@
       selected: null,
       candleTimes: [],
       highlightLine: null,
-      liveSignals: []
+      liveSignals: [],
+      pendingSignalRef: null
     };
 
     const els = {
@@ -968,6 +969,46 @@
       });
     }
 
+    function applyURLContext() {
+      const params = new URLSearchParams(window.location.search);
+      const symbol = params.get('symbol');
+      const timeframe = params.get('timeframe');
+      const strategy = params.get('strategy');
+      const from = params.get('from');
+      const to = params.get('to');
+      const signalId = params.get('signalId');
+      const signalKey = params.get('signalKey');
+
+      if (symbol && state.symbols.some(item => item.AssetCode === symbol)) {
+        els.symbol.value = symbol;
+      }
+      if (timeframe && state.timeframes.some(item => item.Code === timeframe)) {
+        els.timeframe.value = timeframe;
+        syncStrategyOptions();
+      }
+      if (strategy && Array.from(els.strategy.options).some(option => option.value === strategy)) {
+        els.strategy.value = strategy;
+      }
+      if (from) {
+        const parsedFrom = parseTimestamp(from);
+        if (!Number.isNaN(parsedFrom.getTime())) {
+          els.from.value = toDateTimeLocalValue(parsedFrom);
+        }
+      }
+      if (to) {
+        const parsedTo = parseTimestamp(to);
+        if (!Number.isNaN(parsedTo.getTime())) {
+          els.to.value = toDateTimeLocalValue(parsedTo);
+        }
+      }
+      if (signalId || signalKey) {
+        state.pendingSignalRef = {
+          id: signalId ? Number(signalId) : null,
+          key: signalKey || null
+        };
+      }
+    }
+
     function populateSelect(select, items, valueKey, labelKey) {
       select.innerHTML = '';
       for (const item of items) {
@@ -1026,6 +1067,7 @@
       els.metricSymbols.textContent = symbolsRes.active_count ?? symbolsRes.count ?? state.symbols.length;
       els.from.value = defaultFromDate();
       els.to.value = defaultToDate();
+      applyURLContext();
 
       buildChart();
       bindFilterListeners();
@@ -1498,6 +1540,16 @@
             : trades.some(trade => trade.ID === previousSelection.id);
           if (stillExists) {
             state.selected = previousSelection;
+          }
+        }
+        if (!state.selected && state.pendingSignalRef) {
+          const match = signals.find(signal =>
+            (state.pendingSignalRef.id != null && signal.ID === state.pendingSignalRef.id) ||
+            (state.pendingSignalRef.key && signal.DedupeKey === state.pendingSignalRef.key)
+          );
+          if (match) {
+            state.selected = { kind: 'signal', id: match.ID };
+            state.pendingSignalRef = null;
           }
         }
 

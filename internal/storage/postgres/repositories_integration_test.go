@@ -314,6 +314,114 @@ func TestIngestionJobRepositoryTracksSuccessfulSync(t *testing.T) {
 	}
 }
 
+func TestSignalRepositoryListEntryByRunOnlyReturnsEntrySignals(t *testing.T) {
+	db := testutil.CreateTestDatabase(t)
+	ctx := context.Background()
+
+	strategies := postgres.NewStrategyRepository(db)
+	symbols := postgres.NewSymbolRepository(db)
+	timeframes := postgres.NewTimeframeRepository(db)
+	runs := postgres.NewStrategyRunRepository(db)
+	signals := postgres.NewSignalRepository(db)
+
+	strategy, err := strategies.FindBySlug(ctx, "trend-long-v1")
+	if err != nil || strategy == nil {
+		t.Fatalf("find strategy: %v", err)
+	}
+	symbol, err := symbols.FindByAssetCode(ctx, "BTC")
+	if err != nil || symbol == nil {
+		t.Fatalf("find BTC symbol: %v", err)
+	}
+	timeframe, err := timeframes.FindByCode(ctx, "1h")
+	if err != nil || timeframe == nil {
+		t.Fatalf("find 1h timeframe: %v", err)
+	}
+
+	at := time.Date(2026, 8, 18, 5, 0, 0, 0, time.UTC)
+	runID, err := runs.Start(ctx, strategy.ID, symbol.ID, timeframe.ID, strategy.DefaultParams, &at, &at, 12)
+	if err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	if err := signals.UpsertMany(ctx, runID, strategy.ID, symbol.ID, timeframe.ID, []domain.Signal{
+		{
+			DedupeKey: "entry|" + at.Format(time.RFC3339),
+			Time:      at,
+			Type:      "entry",
+			Side:      "long",
+			Price:     101.25,
+			Status:    "confirmed",
+			Title:     "entry signal",
+		},
+		{
+			DedupeKey: "exit|" + at.Add(time.Hour).Format(time.RFC3339),
+			Time:      at.Add(time.Hour),
+			Type:      "exit",
+			Side:      "long",
+			Price:     99.5,
+			Status:    "confirmed",
+			Title:     "exit signal",
+		},
+	}); err != nil {
+		t.Fatalf("insert signals: %v", err)
+	}
+
+	items, err := signals.ListEntryByRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("list entry by run: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected only one entry signal, got %d", len(items))
+	}
+	if items[0].SignalType != "entry" || items[0].AssetCode != "BTC" || items[0].Timeframe != "1h" {
+		t.Fatalf("unexpected entry signal payload: %#v", items[0])
+	}
+}
+
+func TestSignalNotificationRepositoryClaimAndRelease(t *testing.T) {
+	db := testutil.CreateTestDatabase(t)
+	ctx := context.Background()
+	repo := postgres.NewSignalNotificationRepository(db)
+	var signalID *int64
+
+	claimed, err := repo.TryClaim(ctx, "telegram", "trend-long-v1|BTC|1h|entry|2026-08-18T05:00:00Z", signalID)
+	if err != nil {
+		t.Fatalf("first claim: %v", err)
+	}
+	if !claimed {
+		t.Fatal("expected first claim to succeed")
+	}
+
+	claimed, err = repo.TryClaim(ctx, "telegram", "trend-long-v1|BTC|1h|entry|2026-08-18T05:00:00Z", signalID)
+	if err != nil {
+		t.Fatalf("second claim: %v", err)
+	}
+	if claimed {
+		t.Fatal("expected duplicate claim to be rejected")
+	}
+
+	if err := repo.ReleaseClaim(ctx, "telegram", "trend-long-v1|BTC|1h|entry|2026-08-18T05:00:00Z"); err != nil {
+		t.Fatalf("release claim: %v", err)
+	}
+	claimed, err = repo.TryClaim(ctx, "telegram", "trend-long-v1|BTC|1h|entry|2026-08-18T05:00:00Z", signalID)
+	if err != nil {
+		t.Fatalf("third claim: %v", err)
+	}
+	if !claimed {
+		t.Fatal("expected claim after release to succeed")
+	}
+	if err := repo.MarkSent(ctx, "telegram", "trend-long-v1|BTC|1h|entry|2026-08-18T05:00:00Z"); err != nil {
+		t.Fatalf("mark sent: %v", err)
+	}
+
+	var sentCount int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM signal_notifications WHERE channel='telegram' AND sent_at IS NOT NULL`).Scan(&sentCount); err != nil {
+		t.Fatalf("count sent notifications: %v", err)
+	}
+	if sentCount != 1 {
+		t.Fatalf("expected one sent notification, got %d", sentCount)
+	}
+}
+
 func testCandle(symbolID, timeframeID int64, openTime time.Time, close string) marketdata.Candle {
 	return marketdata.Candle{
 		SymbolID:            symbolID,

@@ -108,6 +108,7 @@ func RollbackLastMigration(db *sql.DB) error {
 func ResetMigrations(db *sql.DB) error {
 	if _, err := db.Exec(`
 		DROP TABLE IF EXISTS trades;
+		DROP TABLE IF EXISTS signal_notifications;
 		DROP TABLE IF EXISTS signals;
 		DROP TABLE IF EXISTS strategy_runs;
 		DROP TABLE IF EXISTS strategies;

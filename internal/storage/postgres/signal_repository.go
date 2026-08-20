@@ -206,3 +206,45 @@ func (r *SignalRepository) ListOnLatestCandles(ctx context.Context) ([]LiveSigna
 
 	return items, rows.Err()
 }
+
+func (r *SignalRepository) ListEntryByRun(ctx context.Context, runID int64) ([]EntrySignalRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT
+			s.id, s.strategy_id, s.symbol_id, s.timeframe_id, s.dedupe_key,
+			s.signal_time, s.signal_type, s.side, s.price, s.confidence, s.status, s.title, s.details, s.meta,
+			sy.asset_code, tf.code, st.slug, st.name
+		FROM signals s
+		INNER JOIN symbols sy ON sy.id = s.symbol_id
+		INNER JOIN timeframes tf ON tf.id = s.timeframe_id
+		INNER JOIN strategies st ON st.id = s.strategy_id
+		WHERE s.strategy_run_id = $1
+			AND s.signal_type = 'entry'
+		ORDER BY s.signal_time ASC, s.id ASC
+	`, runID)
+	if err != nil {
+		return nil, fmt.Errorf("list entry signals by run: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var items []EntrySignalRecord
+	for rows.Next() {
+		var item EntrySignalRecord
+		var metaJSON []byte
+		if err := rows.Scan(
+			&item.ID, &item.StrategyID, &item.SymbolID, &item.TimeframeID, &item.DedupeKey,
+			&item.SignalTime, &item.SignalType, &item.Side, &item.Price, &item.Confidence, &item.Status, &item.Title, &item.Details, &metaJSON,
+			&item.AssetCode, &item.Timeframe, &item.StrategySlug, &item.StrategyName,
+		); err != nil {
+			return nil, fmt.Errorf("scan entry signal record: %w", err)
+		}
+		meta, err := decodeJSONMap(metaJSON)
+		if err != nil {
+			return nil, fmt.Errorf("decode entry signal meta: %w", err)
+		}
+		item.Meta = meta
+		item.SignalTime = item.SignalTime.UTC()
+		items = append(items, item)
+	}
+
+	return items, rows.Err()
+}

@@ -11,7 +11,9 @@ import (
 
 	"github.com/drybin/fear-and-greed-online/internal/config"
 	"github.com/drybin/fear-and-greed-online/internal/infrastructure/binance"
+	"github.com/drybin/fear-and-greed-online/internal/infrastructure/telegram"
 	"github.com/drybin/fear-and-greed-online/internal/services"
+	"github.com/drybin/fear-and-greed-online/internal/services/notifications"
 	strategysvc "github.com/drybin/fear-and-greed-online/internal/services/strategy"
 	"github.com/drybin/fear-and-greed-online/internal/storage/postgres"
 	engine "github.com/drybin/fear-and-greed-online/internal/strategy"
@@ -106,9 +108,23 @@ func runStrategies(ctx context.Context, cfg *config.Config, db *sql.DB, args []s
 			engine.NewPrevDayRangeBreakoutV1(),
 		),
 		cfg.SyncBackfillDays,
+		buildEntrySignalNotifier(cfg, db),
 	)
 
 	return runner.Run(ctx, strategyFilter, assetFilter)
+}
+
+func buildEntrySignalNotifier(cfg *config.Config, db *sql.DB) strategysvc.EntrySignalNotifier {
+	if !cfg.Telegram.Enabled {
+		return nil
+	}
+	return notifications.NewTelegramSignalNotifier(
+		postgres.NewSignalRepository(db),
+		postgres.NewSignalNotificationRepository(db),
+		telegram.NewClient(cfg.Telegram.BotToken),
+		cfg.Telegram.ChatID,
+		cfg.Telegram.BaseURL,
+	)
 }
 
 func runListActiveSymbols(ctx context.Context, db *sql.DB) error {

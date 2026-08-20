@@ -16,6 +16,10 @@ func TestApplyMigrationsSeedsMarketAndStrategyReferenceData(t *testing.T) {
 
 func TestRollbackLastMigration(t *testing.T) {
 	db := testutil.CreateTestDatabase(t)
+	var beforeCount int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&beforeCount); err != nil {
+		t.Fatalf("count schema migrations before rollback: %v", err)
+	}
 
 	if err := postgres.RollbackLastMigration(db); err != nil {
 		t.Fatalf("rollback last migration: %v", err)
@@ -25,22 +29,22 @@ func TestRollbackLastMigration(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&migrationCount); err != nil {
 		t.Fatalf("count schema migrations: %v", err)
 	}
-	if migrationCount != 5 {
-		t.Fatalf("unexpected migration count after rollback: got %d want 5", migrationCount)
+	if migrationCount != beforeCount-1 {
+		t.Fatalf("unexpected migration count after rollback: got %d want %d", migrationCount, beforeCount-1)
 	}
 
-	var indexExists bool
+	var tableExists bool
 	if err := db.QueryRow(`
 		SELECT EXISTS (
 			SELECT 1
-			FROM pg_indexes
-			WHERE indexname = 'signals_strategy_symbol_timeframe_signal_time_idx'
+			FROM information_schema.tables
+			WHERE table_name = 'signal_notifications'
 		)
-	`).Scan(&indexExists); err != nil {
-		t.Fatalf("check rolled back index: %v", err)
+	`).Scan(&tableExists); err != nil {
+		t.Fatalf("check rolled back table: %v", err)
 	}
-	if indexExists {
-		t.Fatal("expected mvp query index to be removed after rollback")
+	if tableExists {
+		t.Fatal("expected signal_notifications table to be removed after rollback")
 	}
 
 	if err := postgres.ApplyMigrations(db); err != nil {

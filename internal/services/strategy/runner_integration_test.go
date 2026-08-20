@@ -82,6 +82,7 @@ func TestRunnerPersistsRunsSignalsAndTradesWithDeduplication(t *testing.T) {
 		tradeRepo,
 		engine.NewRegistry(engine.NewTrendLongV1()),
 		30,
+		nil,
 	)
 
 	if err := runner.Run(ctx, "trend-long-v1", "BTC"); err != nil {
@@ -210,6 +211,7 @@ func TestRunnerReplacesStaleSignalsAndTradesFromPreviousRun(t *testing.T) {
 		tradeRepo,
 		engine.NewRegistry(engine.NewTrendLongV1()),
 		30,
+		nil,
 	)
 
 	if err := runner.Run(ctx, "trend-long-v1", "BTC"); err != nil {

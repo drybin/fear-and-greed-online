@@ -105,6 +105,7 @@ func run() error {
 			engine.NewPrevDayRangeBreakoutV1(),
 		),
 		cfg.SyncBackfillDays,
+		nil,
 	)
 	if err := runner.Run(ctx, "", asset); err != nil {
 		return fmt.Errorf("run strategies: %w", err)

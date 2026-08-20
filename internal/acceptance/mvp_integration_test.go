@@ -87,6 +87,7 @@ func seedStrategyFixtures(t *testing.T, db *sql.DB, ctx context.Context) {
 		postgres.NewTradeRepository(db),
 		engine.NewRegistry(engine.NewTrendLongV1(), engine.NewBreakoutRetestV1(), engine.NewPrevDayRangeBreakoutV1()),
 		30,
+		nil,
 	)
 	if err := runner.Run(ctx, "trend-long-v1", "BTC"); err != nil {
 		t.Fatalf("run trend-long-v1: %v", err)

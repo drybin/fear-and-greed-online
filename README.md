@@ -28,7 +28,7 @@ go run ./cmd/worker run-strategies --strategy trend-long-v1 --asset BTC
 make api
 ```
 
-Open the dashboard at [http://localhost:8080/](http://localhost:8080/).
+Open the dashboard at [http://localhost/](http://localhost/) (default `APP_PORT=80`).
 
 ### Verify the full MVP path
 
@@ -109,6 +109,10 @@ go run ./cmd/worker run-strategies --strategy breakout-retest-v1 --asset ETH
 | `POSTGRES_PASSWORD` | `fear_and_greed` | Database password |
 | `BINANCE_BASE_URL` | `https://api.binance.com` | Binance Spot REST API |
 | `SYNC_BACKFILL_DAYS` | `30` | Initial candle backfill window when no data exists yet |
+| `TG_ENABLED` | `false` | Enable Telegram notifications for new `entry` signals |
+| `TG_BOT_TOKEN` | empty | Telegram bot token (required when `TG_ENABLED=true`) |
+| `TG_CHAT_ID` | empty | Telegram channel/chat id (required when `TG_ENABLED=true`) |
+| `TG_BASE_URL` | `http://dr54.ru/` | Base URL used in deep-links to specific signals |
 
 The API, worker, and migrate commands auto-apply pending SQL migrations on startup. The API fails fast when PostgreSQL is unreachable or migrations cannot be applied.
 
@@ -159,8 +163,8 @@ Inspect the active tradable universe:
 
 ```bash
 make list-active-symbols
-curl http://localhost:8080/symbols/active
-curl http://localhost:8080/symbols/all
+curl http://localhost/symbols/active
+curl http://localhost/symbols/all
 ```
 
 The seeded snapshot contains 50 assets. Twelve are marked inactive because they are not available as Binance Spot pairs in the MVP mapping:
@@ -214,6 +218,8 @@ go run ./cmd/worker run-strategies --strategy trend-long-v1 --asset BTC
 go run ./cmd/worker run-strategies --strategy breakout-retest-v1 --asset ETH
 ```
 
+When `TG_ENABLED=true`, `run-strategies` sends Telegram notifications only for new `entry` signals. Each signal (by dedupe key) is sent once, and includes algorithm, coin, timeframe, and a deep-link to the specific signal on `TG_BASE_URL`.
+
 Available strategies (seeded in migration `000005`):
 
 | Slug | Timeframes | Description |
@@ -231,7 +237,7 @@ Start the API:
 make api
 ```
 
-Open the dashboard at [http://localhost:8080/](http://localhost:8080/).
+Open the dashboard at [http://localhost/](http://localhost/) (default `APP_PORT=80`).
 
 The API serves JSON endpoints and static files from `web/`. The dashboard is a single `web/index.html` page using Lightweight Charts.
 
@@ -261,9 +267,9 @@ Common query parameters for chart endpoints:
 Examples:
 
 ```bash
-curl 'http://localhost:8080/chart-data?symbol=BTC&timeframe=1h&strategy=trend-long-v1'
-curl 'http://localhost:8080/freshness?symbol=BTC&timeframe=1h&strategy=trend-long-v1'
-curl 'http://localhost:8080/strategy-runs?symbol=BTC&timeframe=1h&strategy=trend-long-v1&limit=5'
+curl 'http://localhost/chart-data?symbol=BTC&timeframe=1h&strategy=trend-long-v1'
+curl 'http://localhost/freshness?symbol=BTC&timeframe=1h&strategy=trend-long-v1'
+curl 'http://localhost/strategy-runs?symbol=BTC&timeframe=1h&strategy=trend-long-v1&limit=5'
 ```
 
 Endpoints:
@@ -328,7 +334,7 @@ Optional overrides:
 | --- | --- | --- |
 | `SMOKE_ASSET` | `BTC` | Asset used for sync and strategy checks |
 | `SMOKE_STRATEGY` | `trend-long-v1` | Strategy slug used for recalculation and chart checks |
-| `SMOKE_PORT` | `18080` | Temporary API port for smoke (avoids clashing with a dev API on `8080`) |
+| `SMOKE_PORT` | `18080` | Temporary API port for smoke (avoids clashing with a dev API on your default app port) |
 
 Requires Docker, network access to Binance, and a `.env` file (or defaults from `.env.example`).
 
@@ -361,10 +367,10 @@ The integration test `internal/acceptance/mvp_integration_test.go` covers the sa
 | --- | --- | --- |
 | `connection refused` on `5433` | PostgreSQL is not running | `make postgres-up` and wait a few seconds |
 | API starts but `/ready` fails | Wrong DB settings or migrations not applied | Check `.env`, then `make migrate-up` |
-| `make api` fails to bind port | Port `8080` already in use | Stop the other process or change `APP_PORT` |
+| `make api` fails to bind port | Port `80` already in use | Stop the other process or change `APP_PORT` |
 | Candle sync fails immediately | No network access to Binance | Check connectivity and `BINANCE_BASE_URL` |
 | Dashboard loads but chart is empty | No candles or strategy runs for the selected filters | Run scoped sync and `run-strategies`, then pick an active symbol/timeframe/strategy pair |
-| `make smoke` passes but dev API does not | Smoke uses port `18080`, not `8080` | Use `make api` for normal development on `8080` |
+| `make smoke` passes but dev API does not | Smoke uses port `18080`, not default app port | Use `make api` for normal development on your `APP_PORT` |
 | `make acceptance` fails on signals | Acceptance asset lacks synced candles or strategy output | Re-run `make acceptance`, or sync/run strategies manually for `ACCEPTANCE_ASSET` |
 
 ## Project layout

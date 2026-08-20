@@ -12,7 +12,15 @@ type Config struct {
 	AppPort          string
 	BinanceBaseURL   string
 	SyncBackfillDays int
+	Telegram         TelegramConfig
 	Postgres         PostgresConfig
+}
+
+type TelegramConfig struct {
+	Enabled  bool
+	BotToken string
+	ChatID   string
+	BaseURL  string
 }
 
 type PostgresConfig struct {
@@ -31,6 +39,12 @@ func Load() (*Config, error) {
 		AppPort:          envOrDefault("APP_PORT", "80"),
 		BinanceBaseURL:   envOrDefault("BINANCE_BASE_URL", "https://api.binance.com"),
 		SyncBackfillDays: intEnvOrDefault("SYNC_BACKFILL_DAYS", 30),
+		Telegram: TelegramConfig{
+			Enabled:  boolEnvOrDefault("TG_ENABLED", false),
+			BotToken: envOrDefault("TG_BOT_TOKEN", ""),
+			ChatID:   envOrDefault("TG_CHAT_ID", ""),
+			BaseURL:  envOrDefault("TG_BASE_URL", "http://dr54.ru/"),
+		},
 		Postgres: PostgresConfig{
 			Host:     envOrDefault("POSTGRES_HOST", "127.0.0.1"),
 			Port:     envOrDefault("POSTGRES_PORT", "5433"),
@@ -46,6 +60,14 @@ func Load() (*Config, error) {
 	}
 	if cfg.SyncBackfillDays < 1 {
 		return nil, fmt.Errorf("SYNC_BACKFILL_DAYS must be at least 1")
+	}
+	if cfg.Telegram.Enabled {
+		if cfg.Telegram.BotToken == "" {
+			return nil, fmt.Errorf("TG_BOT_TOKEN is required when TG_ENABLED=true")
+		}
+		if cfg.Telegram.ChatID == "" {
+			return nil, fmt.Errorf("TG_CHAT_ID is required when TG_ENABLED=true")
+		}
 	}
 	if cfg.Postgres.Host == "" || cfg.Postgres.Port == "" || cfg.Postgres.Database == "" || cfg.Postgres.User == "" {
 		return nil, fmt.Errorf("postgres configuration is incomplete")
@@ -85,4 +107,20 @@ func intEnvOrDefault(key string, fallback int) int {
 	}
 
 	return parsed
+}
+
+func boolEnvOrDefault(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	switch value {
+	case "1", "true", "TRUE", "yes", "YES", "on", "ON":
+		return true
+	case "0", "false", "FALSE", "no", "NO", "off", "OFF":
+		return false
+	default:
+		return fallback
+	}
 }

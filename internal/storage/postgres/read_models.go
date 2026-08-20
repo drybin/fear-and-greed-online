@@ -66,3 +66,11 @@ type LiveSignalRecord struct {
 	StrategySlug string
 	StrategyName string
 }
+
+type EntrySignalRecord struct {
+	SignalRecord
+	AssetCode    string
+	Timeframe    string
+	StrategySlug string
+	StrategyName string
+}
