@@ -43,12 +43,6 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 	}
 
 	var out RunOutput
-	var (
-		curPDH, curPDL   float64
-		prevPDH, prevPDL float64
-		hasPrevPDH       bool
-		lastPrevKey      string
-	)
 	for _, candle := range input.Candles {
 		local := candle.Time.In(msk)
 		prevKey := moscowDayKey(local.AddDate(0, 0, -1))
@@ -57,28 +51,19 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 			continue
 		}
 
-		if prevKey != lastPrevKey {
-			if lastPrevKey != "" {
-				prevPDH, prevPDL = curPDH, curPDL
-				hasPrevPDH = true
-			}
-			curPDH, curPDL = prev.high, prev.low
-			lastPrevKey = prevKey
-		}
-
 		meta := map[string]any{
-			"prev_day": prevKey,
-			"day_high": curPDH,
-			"day_low":  curPDL,
-			"open":     candle.Open,
-			"close":    candle.Close,
-		}
-		if hasPrevPDH {
-			meta["prev_pdh_high"] = prevPDH
-			meta["prev_pdh_low"] = prevPDL
+			"prev_day":      prevKey,
+			"day_high":      prev.high,
+			"day_low":       prev.low,
+			"open":          candle.Open,
+			"high":          candle.High,
+			"low":           candle.Low,
+			"close":         candle.Close,
+			"prev_pdh_high": candle.High,
+			"prev_pdh_low":  candle.Low,
 		}
 
-		if candle.Close > curPDH {
+		if candle.Close > prev.high {
 			out.Signals = append(out.Signals, domain.Signal{
 				DedupeKey: fmt.Sprintf("%s|%s|%s|alert|up|%s", input.StrategySlug, input.Symbol, input.Timeframe, candle.Time.UTC().Format(time.RFC3339)),
 				Time:      candle.Time,
@@ -93,7 +78,7 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 			continue
 		}
 
-		if candle.Close < curPDL && candle.Close > candle.Open {
+		if candle.Close < prev.low && candle.Close > candle.Open {
 			out.Signals = append(out.Signals, domain.Signal{
 				DedupeKey: fmt.Sprintf("%s|%s|%s|alert|down|%s", input.StrategySlug, input.Symbol, input.Timeframe, candle.Time.UTC().Format(time.RFC3339)),
 				Time:      candle.Time,

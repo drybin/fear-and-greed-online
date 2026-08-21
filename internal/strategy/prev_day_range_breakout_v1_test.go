@@ -61,8 +61,11 @@ func TestPrevDayRangeBreakoutV1BreakoutUp(t *testing.T) {
 	if got := sig.Meta["day_low"]; got != 90.0 {
 		t.Fatalf("expected day_low 90, got %#v", got)
 	}
-	if _, ok := sig.Meta["prev_pdh_high"]; ok {
-		t.Fatalf("expected no prev_pdh_high without T-2 history, got %#v", sig.Meta)
+	if got := sig.Meta["prev_pdh_high"]; got != 111.0 {
+		t.Fatalf("expected prev_pdh_high (signal high) 111, got %#v", got)
+	}
+	if got := sig.Meta["prev_pdh_low"]; got != 108.0 {
+		t.Fatalf("expected prev_pdh_low (signal low) 108, got %#v", got)
 	}
 	if len(out.Trades) != 0 {
 		t.Fatalf("expected no trades, got %#v", out.Trades)
@@ -171,17 +174,14 @@ func TestPrevDayRangeBreakoutV1InsufficientHistory(t *testing.T) {
 	}
 }
 
-func TestPrevDayRangeBreakoutV1IncludesPrevPDHLevels(t *testing.T) {
+func TestPrevDayRangeBreakoutV1SignalCandleLevelsAbovePDH(t *testing.T) {
 	msk := mustMoscow()
-	dayBeforePrev := time.Date(2026, 7, 7, 0, 0, 0, 0, msk)
 	prevDay := time.Date(2026, 7, 8, 0, 0, 0, 0, msk)
 	currDay := time.Date(2026, 7, 9, 0, 0, 0, 0, msk)
 
 	candles := []domain.Candle{
-		moscowHourCandle(dayBeforePrev, 10, 80, 120, 70, 90),
-		moscowHourCandle(prevDay, 10, 100, 110, 95, 105),
-		moscowHourCandle(prevDay, 14, 105, 108, 90, 100),
-		moscowHourCandle(currDay, 10, 109, 111, 108, 111),
+		moscowHourCandle(prevDay, 10, 100, 110, 90, 105),
+		moscowHourCandle(currDay, 10, 109, 115, 108, 111), // high breakout: high 115 > PDH 110
 	}
 
 	out, err := NewPrevDayRangeBreakoutV1().Run(RunInput{
@@ -197,19 +197,10 @@ func TestPrevDayRangeBreakoutV1IncludesPrevPDHLevels(t *testing.T) {
 		t.Fatalf("expected 1 signal, got %d: %#v", len(out.Signals), out.Signals)
 	}
 	sig := out.Signals[0]
-	// PDH/PDL for 2026-07-09 come from 2026-07-08.
-	if got := sig.Meta["day_high"]; got != 110.0 {
-		t.Fatalf("expected day_high 110, got %#v", got)
-	}
-	if got := sig.Meta["day_low"]; got != 90.0 {
-		t.Fatalf("expected day_low 90, got %#v", got)
-	}
-	// Prev PHD* are previous PDH/PDL values (from 2026-07-07), not "calendar-2" framing.
-	if got := sig.Meta["prev_pdh_high"]; got != 120.0 {
-		t.Fatalf("expected prev_pdh_high 120, got %#v", got)
-	}
-	if got := sig.Meta["prev_pdh_low"]; got != 70.0 {
-		t.Fatalf("expected prev_pdh_low 70, got %#v", got)
+	pdh := sig.Meta["day_high"].(float64)
+	prevPdhHigh := sig.Meta["prev_pdh_high"].(float64)
+	if prevPdhHigh < pdh {
+		t.Fatalf("Prev PHD High (%.2f) must not be below PDH (%.2f)", prevPdhHigh, pdh)
 	}
 }
 

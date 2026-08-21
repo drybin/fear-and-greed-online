@@ -1228,18 +1228,80 @@
       return date.toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
     }
 
-    function uniqueMoscowDaysFromCandles() {
-      const days = [];
-      const seen = new Set();
-      for (const candle of state.rawCandles || []) {
-        const key = moscowDayKey(candle.OpenTime);
-        if (!key || seen.has(key)) {
-          continue;
-        }
-        seen.add(key);
-        days.push(key);
+    function candleOHLCAtSignal(signal) {
+      if (!signal) {
+        return null;
       }
-      return days;
+      const meta = signal.Meta || {};
+      let open = Number(meta.open);
+      let high = Number(meta.high);
+      let low = Number(meta.low);
+      let close = Number(meta.close);
+      if ([open, high, low, close].every(Number.isFinite)) {
+        return { open, high, low, close };
+      }
+      const time = toChartUnix(signal.SignalTime);
+      const idx = state.candleTimes.indexOf(time);
+      if (idx < 0 || !state.rawCandles[idx]) {
+        return null;
+      }
+      const candle = state.rawCandles[idx];
+      return {
+        open: Number(candle.Open),
+        high: Number(candle.High),
+        low: Number(candle.Low),
+        close: Number(candle.Close)
+      };
+    }
+
+    function prevDayLevelsFromSignal(signal) {
+      const meta = signal?.Meta;
+      if (!meta || typeof meta !== 'object') {
+        return null;
+      }
+
+      let pdh = Number(meta.day_high);
+      let pdl = Number(meta.day_low);
+      if (![pdh, pdl].every(Number.isFinite)) {
+        const prev = dayHighLowFromCandles(meta.prev_day);
+        if (prev) {
+          if (!Number.isFinite(pdh)) {
+            pdh = prev.high;
+          }
+          if (!Number.isFinite(pdl)) {
+            pdl = prev.low;
+          }
+        }
+      }
+
+      let prevPdhHigh = Number(meta.prev_pdh_high ?? meta.high);
+      let prevPdhLow = Number(meta.prev_pdh_low ?? meta.low);
+      if (![prevPdhHigh, prevPdhLow].every(Number.isFinite)) {
+        const candle = candleOHLCAtSignal(signal);
+        if (candle) {
+          if (!Number.isFinite(prevPdhHigh)) {
+            prevPdhHigh = candle.high;
+          }
+          if (!Number.isFinite(prevPdhLow)) {
+            prevPdhLow = candle.low;
+          }
+        }
+      }
+
+      const levels = [];
+      if (Number.isFinite(pdh)) {
+        levels.push({ price: pdh, color: '#1d8f5f', title: 'PDH' });
+      }
+      if (Number.isFinite(pdl)) {
+        levels.push({ price: pdl, color: '#2f6fed', title: 'PDL' });
+      }
+      if (Number.isFinite(prevPdhLow)) {
+        levels.push({ price: prevPdhLow, color: '#8a7a5a', title: 'Prev PHD Low' });
+      }
+      if (Number.isFinite(prevPdhHigh)) {
+        levels.push({ price: prevPdhHigh, color: '#c45c26', title: 'Prev PHD High' });
+      }
+      return levels.length ? levels : null;
     }
 
     function dayHighLowFromCandles(dayKey) {
@@ -1260,65 +1322,6 @@
         return null;
       }
       return { high, low };
-    }
-
-    function previousPdhLevelsFromCandles(prevDayKey) {
-      const days = uniqueMoscowDaysFromCandles();
-      const idx = days.indexOf(prevDayKey);
-      if (idx <= 0) {
-        return null;
-      }
-      return dayHighLowFromCandles(days[idx - 1]);
-    }
-
-    function prevDayLevelsFromMeta(meta) {
-      if (!meta || typeof meta !== 'object') {
-        return null;
-      }
-
-      let pdh = Number(meta.day_high);
-      let pdl = Number(meta.day_low);
-      let prevPdhHigh = Number(meta.prev_pdh_high);
-      let prevPdhLow = Number(meta.prev_pdh_low);
-
-      if (![pdh, pdl].every(Number.isFinite)) {
-        const prev = dayHighLowFromCandles(meta.prev_day);
-        if (prev) {
-          if (!Number.isFinite(pdh)) {
-            pdh = prev.high;
-          }
-          if (!Number.isFinite(pdl)) {
-            pdl = prev.low;
-          }
-        }
-      }
-
-      if (![prevPdhHigh, prevPdhLow].every(Number.isFinite) && meta.prev_day) {
-        const before = previousPdhLevelsFromCandles(meta.prev_day);
-        if (before) {
-          if (!Number.isFinite(prevPdhHigh)) {
-            prevPdhHigh = before.high;
-          }
-          if (!Number.isFinite(prevPdhLow)) {
-            prevPdhLow = before.low;
-          }
-        }
-      }
-
-      const levels = [];
-      if (Number.isFinite(pdh)) {
-        levels.push({ price: pdh, color: '#1d8f5f', title: 'PDH' });
-      }
-      if (Number.isFinite(pdl)) {
-        levels.push({ price: pdl, color: '#2f6fed', title: 'PDL' });
-      }
-      if (Number.isFinite(prevPdhLow)) {
-        levels.push({ price: prevPdhLow, color: '#8a7a5a', title: 'Prev PHD Low' });
-      }
-      if (Number.isFinite(prevPdhHigh)) {
-        levels.push({ price: prevPdhHigh, color: '#c45c26', title: 'Prev PHD High' });
-      }
-      return levels.length ? levels : null;
     }
 
     function drawPrevDayLevels(levels) {
@@ -1415,7 +1418,7 @@
       requestAnimationFrame(applyCrosshair);
 
       const signal = selectedSignal();
-      const prevDayLevels = signal ? prevDayLevelsFromMeta(signal.Meta) : null;
+      const prevDayLevels = signal ? prevDayLevelsFromSignal(signal) : null;
       if (prevDayLevels) {
         drawPrevDayLevels(prevDayLevels);
         return;
