@@ -55,6 +55,18 @@ func TestPrevDayRangeBreakoutV1BreakoutUp(t *testing.T) {
 	if sig.Type != "alert" || sig.Side != "long" || sig.Title != "Prev-day high breakout" {
 		t.Fatalf("unexpected signal: %#v", sig)
 	}
+	if got := sig.Meta["day_open"]; got != 100.0 {
+		t.Fatalf("expected day_open 100, got %#v", got)
+	}
+	if got := sig.Meta["day_high"]; got != 110.0 {
+		t.Fatalf("expected day_high 110, got %#v", got)
+	}
+	if got := sig.Meta["day_low"]; got != 90.0 {
+		t.Fatalf("expected day_low 90, got %#v", got)
+	}
+	if got := sig.Meta["day_close"]; got != 100.0 {
+		t.Fatalf("expected day_close 100, got %#v", got)
+	}
 	if len(out.Trades) != 0 {
 		t.Fatalf("expected no trades, got %#v", out.Trades)
 	}

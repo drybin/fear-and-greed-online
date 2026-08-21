@@ -18,8 +18,10 @@ func (s *PrevDayRangeBreakoutV1) Slug() string {
 }
 
 type dayRange struct {
-	high float64
-	low  float64
+	open  float64
+	high  float64
+	low   float64
+	close float64
 }
 
 func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
@@ -51,6 +53,16 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 			continue
 		}
 
+		meta := map[string]any{
+			"prev_day":  prevKey,
+			"day_open":  prev.open,
+			"day_high":  prev.high,
+			"day_low":   prev.low,
+			"day_close": prev.close,
+			"open":      candle.Open,
+			"close":     candle.Close,
+		}
+
 		if candle.Close > prev.high {
 			out.Signals = append(out.Signals, domain.Signal{
 				DedupeKey: fmt.Sprintf("%s|%s|%s|alert|up|%s", input.StrategySlug, input.Symbol, input.Timeframe, candle.Time.UTC().Format(time.RFC3339)),
@@ -61,13 +73,7 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 				Status:    "confirmed",
 				Title:     "Prev-day high breakout",
 				Details:   "Close closed above previous Moscow day high",
-				Meta: map[string]any{
-					"prev_day": prevKey,
-					"day_high": prev.high,
-					"day_low":  prev.low,
-					"open":     candle.Open,
-					"close":    candle.Close,
-				},
+				Meta:      meta,
 			})
 			continue
 		}
@@ -82,13 +88,7 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 				Status:    "confirmed",
 				Title:     "Prev-day low breakout",
 				Details:   "Green candle closed below previous Moscow day low",
-				Meta: map[string]any{
-					"prev_day": prevKey,
-					"day_high": prev.high,
-					"day_low":  prev.low,
-					"open":     candle.Open,
-					"close":    candle.Close,
-				},
+				Meta:      meta,
 			})
 		}
 	}
@@ -102,7 +102,12 @@ func buildMoscowDayRanges(candles []domain.Candle, msk *time.Location) map[strin
 		key := moscowDayKey(candle.Time.In(msk))
 		existing, ok := rangesByDay[key]
 		if !ok {
-			rangesByDay[key] = dayRange{high: candle.High, low: candle.Low}
+			rangesByDay[key] = dayRange{
+				open:  candle.Open,
+				high:  candle.High,
+				low:   candle.Low,
+				close: candle.Close,
+			}
 			continue
 		}
 		if candle.High > existing.high {
@@ -111,6 +116,7 @@ func buildMoscowDayRanges(candles []domain.Candle, msk *time.Location) map[strin
 		if candle.Low < existing.low {
 			existing.low = candle.Low
 		}
+		existing.close = candle.Close
 		rangesByDay[key] = existing
 	}
 	return rangesByDay

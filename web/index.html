@@ -673,6 +673,7 @@
       trades: [],
       selected: null,
       candleTimes: [],
+      rawCandles: [],
       highlightLine: null,
       levelLines: [],
       liveSignals: [],
@@ -1219,19 +1220,75 @@
       return state.signals.find(item => item.ID === state.selected.id) || null;
     }
 
+    function moscowDayKey(value) {
+      const date = parseTimestamp(value);
+      if (Number.isNaN(date.getTime())) {
+        return '';
+      }
+      return date.toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
+    }
+
+    function prevDayOHLCFromCandles(prevDayKey) {
+      if (!prevDayKey || !state.rawCandles.length) {
+        return null;
+      }
+      const dayCandles = state.rawCandles.filter(item => moscowDayKey(item.OpenTime) === prevDayKey);
+      if (!dayCandles.length) {
+        return null;
+      }
+      let high = Number(dayCandles[0].High);
+      let low = Number(dayCandles[0].Low);
+      for (const candle of dayCandles) {
+        high = Math.max(high, Number(candle.High));
+        low = Math.min(low, Number(candle.Low));
+      }
+      return {
+        open: Number(dayCandles[0].Open),
+        high,
+        low,
+        close: Number(dayCandles[dayCandles.length - 1].Close)
+      };
+    }
+
     function prevDayLevelsFromMeta(meta) {
       if (!meta || typeof meta !== 'object') {
         return null;
       }
-      const dayHigh = Number(meta.day_high);
-      const dayLow = Number(meta.day_low);
-      if (![dayHigh, dayLow].every(Number.isFinite)) {
-        return null;
+      let open = Number(meta.day_open);
+      let high = Number(meta.day_high);
+      let low = Number(meta.day_low);
+      let close = Number(meta.day_close);
+      if (![open, high, low, close].every(Number.isFinite)) {
+        const fromCandles = prevDayOHLCFromCandles(meta.prev_day);
+        if (fromCandles) {
+          if (!Number.isFinite(open)) {
+            open = fromCandles.open;
+          }
+          if (!Number.isFinite(high)) {
+            high = fromCandles.high;
+          }
+          if (!Number.isFinite(low)) {
+            low = fromCandles.low;
+          }
+          if (!Number.isFinite(close)) {
+            close = fromCandles.close;
+          }
+        }
       }
-      return [
-        { price: dayHigh, color: '#1d8f5f', title: 'Prev High' },
-        { price: dayLow, color: '#2f6fed', title: 'Prev Low' }
-      ];
+      const levels = [];
+      if (Number.isFinite(open)) {
+        levels.push({ price: open, color: '#8a7a5a', title: 'Prev Open' });
+      }
+      if (Number.isFinite(high)) {
+        levels.push({ price: high, color: '#1d8f5f', title: 'Prev High' });
+      }
+      if (Number.isFinite(low)) {
+        levels.push({ price: low, color: '#2f6fed', title: 'Prev Low' });
+      }
+      if (Number.isFinite(close)) {
+        levels.push({ price: close, color: '#c45c26', title: 'Prev Close' });
+      }
+      return levels.length ? levels : null;
     }
 
     function drawPrevDayLevels(levels) {
@@ -1692,6 +1749,7 @@
           }
         }
 
+        state.rawCandles = candles;
         state.candleTimes = candles.map(item => toChartUnix(item.OpenTime));
         state.series.setData(candles.map((item, index) => ({
           time: state.candleTimes[index],
