@@ -33,6 +33,8 @@ type PostgresConfig struct {
 }
 
 func Load() (*Config, error) {
+	loadDotEnv()
+
 	cfg := &Config{
 		AppEnv:           envOrDefault("APP_ENV", "development"),
 		AppHost:          envOrDefault("APP_HOST", "0.0.0.0"),

@@ -114,7 +114,7 @@ go run ./cmd/worker run-strategies --strategy breakout-retest-v1 --asset ETH
 | `TG_CHAT_ID` | empty | Telegram channel/chat id (required when `TG_ENABLED=true`) |
 | `TG_BASE_URL` | `http://dr54.ru/` | Base URL used in deep-links to specific signals |
 
-The API, worker, and migrate commands auto-apply pending SQL migrations on startup. The API fails fast when PostgreSQL is unreachable or migrations cannot be applied.
+The API, worker, and migrate commands auto-load a nearby `.env` file (without overriding already-exported shell variables) and auto-apply pending SQL migrations on startup. The API fails fast when PostgreSQL is unreachable or migrations cannot be applied.
 
 ## Database bootstrap
 
