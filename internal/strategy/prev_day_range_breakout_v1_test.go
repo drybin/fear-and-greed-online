@@ -197,14 +197,19 @@ func TestPrevDayRangeBreakoutV1IncludesPrevPDHLevels(t *testing.T) {
 		t.Fatalf("expected 1 signal, got %d: %#v", len(out.Signals), out.Signals)
 	}
 	sig := out.Signals[0]
+	// PDH/PDL for 2026-07-09 come from 2026-07-08.
+	if got := sig.Meta["day_high"]; got != 110.0 {
+		t.Fatalf("expected day_high 110, got %#v", got)
+	}
+	if got := sig.Meta["day_low"]; got != 90.0 {
+		t.Fatalf("expected day_low 90, got %#v", got)
+	}
+	// Prev PHD* are previous PDH/PDL values (from 2026-07-07), not "calendar-2" framing.
 	if got := sig.Meta["prev_pdh_high"]; got != 120.0 {
 		t.Fatalf("expected prev_pdh_high 120, got %#v", got)
 	}
 	if got := sig.Meta["prev_pdh_low"]; got != 70.0 {
 		t.Fatalf("expected prev_pdh_low 70, got %#v", got)
-	}
-	if got := sig.Meta["prev_prev_day"]; got != "2026-07-07" {
-		t.Fatalf("expected prev_prev_day 2026-07-07, got %#v", got)
 	}
 }
 

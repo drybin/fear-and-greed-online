@@ -1228,16 +1228,18 @@
       return date.toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
     }
 
-    function shiftMoscowDayKey(dayKey, deltaDays) {
-      if (!dayKey || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) {
-        return '';
+    function uniqueMoscowDaysFromCandles() {
+      const days = [];
+      const seen = new Set();
+      for (const candle of state.rawCandles || []) {
+        const key = moscowDayKey(candle.OpenTime);
+        if (!key || seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+        days.push(key);
       }
-      const date = new Date(`${dayKey}T12:00:00+03:00`);
-      if (Number.isNaN(date.getTime())) {
-        return '';
-      }
-      date.setUTCDate(date.getUTCDate() + deltaDays);
-      return date.toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
+      return days;
     }
 
     function dayHighLowFromCandles(dayKey) {
@@ -1258,6 +1260,15 @@
         return null;
       }
       return { high, low };
+    }
+
+    function previousPdhLevelsFromCandles(prevDayKey) {
+      const days = uniqueMoscowDaysFromCandles();
+      const idx = days.indexOf(prevDayKey);
+      if (idx <= 0) {
+        return null;
+      }
+      return dayHighLowFromCandles(days[idx - 1]);
     }
 
     function prevDayLevelsFromMeta(meta) {
@@ -1282,9 +1293,8 @@
         }
       }
 
-      if (![prevPdhHigh, prevPdhLow].every(Number.isFinite)) {
-        const prevPrevKey = meta.prev_prev_day || shiftMoscowDayKey(meta.prev_day, -1);
-        const before = dayHighLowFromCandles(prevPrevKey);
+      if (![prevPdhHigh, prevPdhLow].every(Number.isFinite) && meta.prev_day) {
+        const before = previousPdhLevelsFromCandles(meta.prev_day);
         if (before) {
           if (!Number.isFinite(prevPdhHigh)) {
             prevPdhHigh = before.high;
