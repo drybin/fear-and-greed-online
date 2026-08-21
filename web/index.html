@@ -1228,84 +1228,18 @@
       return date.toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
     }
 
-    function candleOHLCAtSignal(signal) {
-      if (!signal) {
-        return null;
-      }
-      const meta = signal.Meta || {};
-      const high = Number(meta.high);
-      const low = Number(meta.low);
-      if (Number.isFinite(high) && Number.isFinite(low)) {
-        return {
-          open: Number(meta.open),
-          high,
-          low,
-          close: Number(meta.close)
-        };
-      }
-      const time = toChartUnix(signal.SignalTime);
-      const idx = state.candleTimes.indexOf(time);
-      if (idx < 0 || !state.rawCandles[idx]) {
-        return null;
-      }
-      const candle = state.rawCandles[idx];
-      return {
-        open: Number(candle.Open),
-        high: Number(candle.High),
-        low: Number(candle.Low),
-        close: Number(candle.Close)
-      };
-    }
-
-    function prevDayLevelsFromSignal(signal) {
-      const meta = signal?.Meta;
-      if (!meta || typeof meta !== 'object') {
-        return null;
-      }
-
-      let pdh = Number(meta.day_high);
-      let pdl = Number(meta.day_low);
-      if (![pdh, pdl].every(Number.isFinite)) {
-        const prev = dayHighLowFromCandles(meta.prev_day);
-        if (prev) {
-          if (!Number.isFinite(pdh)) {
-            pdh = prev.high;
-          }
-          if (!Number.isFinite(pdl)) {
-            pdl = prev.low;
-          }
+    function uniqueMoscowDaysFromCandles() {
+      const days = [];
+      const seen = new Set();
+      for (const candle of state.rawCandles || []) {
+        const key = moscowDayKey(candle.OpenTime);
+        if (!key || seen.has(key)) {
+          continue;
         }
+        seen.add(key);
+        days.push(key);
       }
-
-      // Prev PHD High/Low = high/low of the signal candle (mirror of each other).
-      let prevPdhHigh = Number(meta.high);
-      let prevPdhLow = Number(meta.low);
-      if (![prevPdhHigh, prevPdhLow].every(Number.isFinite)) {
-        const candle = candleOHLCAtSignal(signal);
-        if (candle) {
-          if (!Number.isFinite(prevPdhHigh)) {
-            prevPdhHigh = candle.high;
-          }
-          if (!Number.isFinite(prevPdhLow)) {
-            prevPdhLow = candle.low;
-          }
-        }
-      }
-
-      const levels = [];
-      if (Number.isFinite(pdh)) {
-        levels.push({ price: pdh, color: '#1d8f5f', title: 'PDH' });
-      }
-      if (Number.isFinite(pdl)) {
-        levels.push({ price: pdl, color: '#2f6fed', title: 'PDL' });
-      }
-      if (Number.isFinite(prevPdhLow)) {
-        levels.push({ price: prevPdhLow, color: '#8a7a5a', title: 'Prev PHD Low' });
-      }
-      if (Number.isFinite(prevPdhHigh)) {
-        levels.push({ price: prevPdhHigh, color: '#c45c26', title: 'Prev PHD High' });
-      }
-      return levels.length ? levels : null;
+      return days;
     }
 
     function dayHighLowFromCandles(dayKey) {
@@ -1326,6 +1260,65 @@
         return null;
       }
       return { high, low };
+    }
+
+    function previousPdhPdlFromCandles(prevDayKey) {
+      const days = uniqueMoscowDaysFromCandles();
+      const idx = days.indexOf(prevDayKey);
+      if (idx <= 0) {
+        return null;
+      }
+      // Previous PDH/PDL values = high/low of the Moscow day before the current prev_day.
+      return dayHighLowFromCandles(days[idx - 1]);
+    }
+
+    function prevDayLevelsFromSignal(signal) {
+      const meta = signal?.Meta;
+      if (!meta || typeof meta !== 'object') {
+        return null;
+      }
+
+      let pdh = Number(meta.day_high);
+      let pdl = Number(meta.day_low);
+      let prevPdhHigh = NaN;
+      let prevPdhLow = NaN;
+
+      if (![pdh, pdl].every(Number.isFinite)) {
+        const prev = dayHighLowFromCandles(meta.prev_day);
+        if (prev) {
+          if (!Number.isFinite(pdh)) {
+            pdh = prev.high;
+          }
+          if (!Number.isFinite(pdl)) {
+            pdl = prev.low;
+          }
+        }
+      }
+
+      // Previous PDH/PDL = values before the strategy rolled to current prev_day.
+      const before = meta.prev_day ? previousPdhPdlFromCandles(meta.prev_day) : null;
+      if (before) {
+        prevPdhHigh = before.high;
+        prevPdhLow = before.low;
+      } else {
+        prevPdhHigh = Number(meta.prev_pdh_high);
+        prevPdhLow = Number(meta.prev_pdh_low);
+      }
+
+      const levels = [];
+      if (Number.isFinite(pdh)) {
+        levels.push({ price: pdh, color: '#1d8f5f', title: 'PDH' });
+      }
+      if (Number.isFinite(pdl)) {
+        levels.push({ price: pdl, color: '#2f6fed', title: 'PDL' });
+      }
+      if (Number.isFinite(prevPdhLow)) {
+        levels.push({ price: prevPdhLow, color: '#8a7a5a', title: 'Prev PHD Low' });
+      }
+      if (Number.isFinite(prevPdhHigh)) {
+        levels.push({ price: prevPdhHigh, color: '#c45c26', title: 'Prev PHD High' });
+      }
+      return levels.length ? levels : null;
     }
 
     function drawPrevDayLevels(levels) {

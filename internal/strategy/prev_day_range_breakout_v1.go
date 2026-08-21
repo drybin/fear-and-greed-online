@@ -43,6 +43,12 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 	}
 
 	var out RunOutput
+	var (
+		pdh, pdl         float64
+		prevPDH, prevPDL float64
+		hasPrevPDH       bool
+		lastPrevKey      string
+	)
 	for _, candle := range input.Candles {
 		local := candle.Time.In(msk)
 		prevKey := moscowDayKey(local.AddDate(0, 0, -1))
@@ -51,19 +57,31 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 			continue
 		}
 
-		meta := map[string]any{
-			"prev_day":      prevKey,
-			"day_high":      prev.high,
-			"day_low":       prev.low,
-			"open":          candle.Open,
-			"high":          candle.High,
-			"low":           candle.Low,
-			"close":         candle.Close,
-			"prev_pdh_high": candle.High,
-			"prev_pdh_low":  candle.Low,
+		// When the strategy's PDH/PDL reference day changes, keep the previous values.
+		if prevKey != lastPrevKey {
+			if lastPrevKey != "" {
+				prevPDH, prevPDL = pdh, pdl
+				hasPrevPDH = true
+			}
+			pdh, pdl = prev.high, prev.low
+			lastPrevKey = prevKey
 		}
 
-		if candle.Close > prev.high {
+		meta := map[string]any{
+			"prev_day": prevKey,
+			"day_high": pdh,
+			"day_low":  pdl,
+			"open":     candle.Open,
+			"high":     candle.High,
+			"low":      candle.Low,
+			"close":    candle.Close,
+		}
+		if hasPrevPDH {
+			meta["prev_pdh_high"] = prevPDH
+			meta["prev_pdh_low"] = prevPDL
+		}
+
+		if candle.Close > pdh {
 			out.Signals = append(out.Signals, domain.Signal{
 				DedupeKey: fmt.Sprintf("%s|%s|%s|alert|up|%s", input.StrategySlug, input.Symbol, input.Timeframe, candle.Time.UTC().Format(time.RFC3339)),
 				Time:      candle.Time,
@@ -78,7 +96,7 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 			continue
 		}
 
-		if candle.Close < prev.low && candle.Close > candle.Open {
+		if candle.Close < pdl && candle.Close > candle.Open {
 			out.Signals = append(out.Signals, domain.Signal{
 				DedupeKey: fmt.Sprintf("%s|%s|%s|alert|down|%s", input.StrategySlug, input.Symbol, input.Timeframe, candle.Time.UTC().Format(time.RFC3339)),
 				Time:      candle.Time,
