@@ -2,6 +2,7 @@ package strategy
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	domain "github.com/drybin/fear-and-greed-online/internal/domain/strategy"
@@ -41,14 +42,9 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 	if len(rangesByDay) < 2 {
 		return RunOutput{}, nil
 	}
+	dayKeys := sortedDayKeys(rangesByDay)
 
 	var out RunOutput
-	var (
-		pdh, pdl         float64
-		prevPDH, prevPDL float64
-		hasPrevPDH       bool
-		lastPrevKey      string
-	)
 	for _, candle := range input.Candles {
 		local := candle.Time.In(msk)
 		prevKey := moscowDayKey(local.AddDate(0, 0, -1))
@@ -57,31 +53,23 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 			continue
 		}
 
-		// When the strategy's PDH/PDL reference day changes, keep the previous values.
-		if prevKey != lastPrevKey {
-			if lastPrevKey != "" {
-				prevPDH, prevPDL = pdh, pdl
-				hasPrevPDH = true
-			}
-			pdh, pdl = prev.high, prev.low
-			lastPrevKey = prevKey
-		}
-
 		meta := map[string]any{
 			"prev_day": prevKey,
-			"day_high": pdh,
-			"day_low":  pdl,
+			"day_high": prev.high,
+			"day_low":  prev.low,
 			"open":     candle.Open,
 			"high":     candle.High,
 			"low":      candle.Low,
 			"close":    candle.Close,
+			// Prev PHD High: previous PDH if it is still at/above current PDH;
+			// otherwise the signal candle high (fresh breakout above prior highs).
+			"prev_pdh_high": resolvePrevPDHHigh(dayKeys, rangesByDay, prevKey, prev.high, candle.High),
 		}
-		if hasPrevPDH {
-			meta["prev_pdh_high"] = prevPDH
+		if prevPDL, ok := previousSessionLow(dayKeys, rangesByDay, prevKey); ok {
 			meta["prev_pdh_low"] = prevPDL
 		}
 
-		if candle.Close > pdh {
+		if candle.Close > prev.high {
 			out.Signals = append(out.Signals, domain.Signal{
 				DedupeKey: fmt.Sprintf("%s|%s|%s|alert|up|%s", input.StrategySlug, input.Symbol, input.Timeframe, candle.Time.UTC().Format(time.RFC3339)),
 				Time:      candle.Time,
@@ -96,7 +84,7 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 			continue
 		}
 
-		if candle.Close < pdl && candle.Close > candle.Open {
+		if candle.Close < prev.low && candle.Close > candle.Open {
 			out.Signals = append(out.Signals, domain.Signal{
 				DedupeKey: fmt.Sprintf("%s|%s|%s|alert|down|%s", input.StrategySlug, input.Symbol, input.Timeframe, candle.Time.UTC().Format(time.RFC3339)),
 				Time:      candle.Time,
@@ -132,6 +120,46 @@ func buildMoscowDayRanges(candles []domain.Candle, msk *time.Location) map[strin
 		rangesByDay[key] = existing
 	}
 	return rangesByDay
+}
+
+func sortedDayKeys(rangesByDay map[string]dayRange) []string {
+	keys := make([]string, 0, len(rangesByDay))
+	for key := range rangesByDay {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func dayIndex(dayKeys []string, key string) int {
+	for i, item := range dayKeys {
+		if item == key {
+			return i
+		}
+	}
+	return -1
+}
+
+func previousSessionLow(dayKeys []string, rangesByDay map[string]dayRange, prevKey string) (float64, bool) {
+	idx := dayIndex(dayKeys, prevKey)
+	if idx <= 0 {
+		return 0, false
+	}
+	return rangesByDay[dayKeys[idx-1]].low, true
+}
+
+func resolvePrevPDHHigh(dayKeys []string, rangesByDay map[string]dayRange, prevKey string, pdh, signalHigh float64) float64 {
+	idx := dayIndex(dayKeys, prevKey)
+	if idx > 0 {
+		// Walk back for the nearest prior session high that is still >= current PDH.
+		for i := idx - 1; i >= 0; i-- {
+			high := rangesByDay[dayKeys[i]].high
+			if high >= pdh {
+				return high
+			}
+		}
+	}
+	return signalHigh
 }
 
 func moscowDayKey(t time.Time) string {

@@ -1262,14 +1262,41 @@
       return { high, low };
     }
 
-    function previousPdhPdlFromCandles(prevDayKey) {
+    function previousSessionLowFromCandles(prevDayKey) {
       const days = uniqueMoscowDaysFromCandles();
       const idx = days.indexOf(prevDayKey);
       if (idx <= 0) {
         return null;
       }
-      // Previous PDH/PDL values = high/low of the Moscow day before the current prev_day.
-      return dayHighLowFromCandles(days[idx - 1]);
+      const hl = dayHighLowFromCandles(days[idx - 1]);
+      return hl ? hl.low : null;
+    }
+
+    function resolvePrevPdhHighFromCandles(prevDayKey, pdh, signalHigh) {
+      const days = uniqueMoscowDaysFromCandles();
+      const idx = days.indexOf(prevDayKey);
+      if (idx > 0) {
+        for (let i = idx - 1; i >= 0; i -= 1) {
+          const hl = dayHighLowFromCandles(days[i]);
+          if (hl && hl.high >= pdh) {
+            return hl.high;
+          }
+        }
+      }
+      return Number.isFinite(signalHigh) ? signalHigh : null;
+    }
+
+    function signalCandleHigh(signal) {
+      const metaHigh = Number(signal?.Meta?.high);
+      if (Number.isFinite(metaHigh)) {
+        return metaHigh;
+      }
+      const time = toChartUnix(signal.SignalTime);
+      const idx = state.candleTimes.indexOf(time);
+      if (idx < 0 || !state.rawCandles[idx]) {
+        return null;
+      }
+      return Number(state.rawCandles[idx].High);
     }
 
     function prevDayLevelsFromSignal(signal) {
@@ -1280,9 +1307,6 @@
 
       let pdh = Number(meta.day_high);
       let pdl = Number(meta.day_low);
-      let prevPdhHigh = NaN;
-      let prevPdhLow = NaN;
-
       if (![pdh, pdl].every(Number.isFinite)) {
         const prev = dayHighLowFromCandles(meta.prev_day);
         if (prev) {
@@ -1295,14 +1319,22 @@
         }
       }
 
-      // Previous PDH/PDL = values before the strategy rolled to current prev_day.
-      const before = meta.prev_day ? previousPdhPdlFromCandles(meta.prev_day) : null;
-      if (before) {
-        prevPdhHigh = before.high;
-        prevPdhLow = before.low;
-      } else {
-        prevPdhHigh = Number(meta.prev_pdh_high);
-        prevPdhLow = Number(meta.prev_pdh_low);
+      let prevPdhLow = Number(meta.prev_pdh_low);
+      if (!Number.isFinite(prevPdhLow) && meta.prev_day) {
+        const low = previousSessionLowFromCandles(meta.prev_day);
+        if (Number.isFinite(low)) {
+          prevPdhLow = low;
+        }
+      }
+
+      let prevPdhHigh = Number(meta.prev_pdh_high);
+      // Recompute High from candles so stale meta (old "previous day high") cannot
+      // leave Prev PHD High below PDH on a fresh breakout.
+      if (meta.prev_day && Number.isFinite(pdh)) {
+        const recomputed = resolvePrevPdhHighFromCandles(meta.prev_day, pdh, signalCandleHigh(signal));
+        if (Number.isFinite(recomputed)) {
+          prevPdhHigh = recomputed;
+        }
       }
 
       const levels = [];
