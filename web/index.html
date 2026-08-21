@@ -1233,12 +1233,15 @@
         return null;
       }
       const meta = signal.Meta || {};
-      let open = Number(meta.open);
-      let high = Number(meta.high);
-      let low = Number(meta.low);
-      let close = Number(meta.close);
-      if ([open, high, low, close].every(Number.isFinite)) {
-        return { open, high, low, close };
+      const high = Number(meta.high);
+      const low = Number(meta.low);
+      if (Number.isFinite(high) && Number.isFinite(low)) {
+        return {
+          open: Number(meta.open),
+          high,
+          low,
+          close: Number(meta.close)
+        };
       }
       const time = toChartUnix(signal.SignalTime);
       const idx = state.candleTimes.indexOf(time);
@@ -1274,8 +1277,9 @@
         }
       }
 
-      let prevPdhHigh = Number(meta.prev_pdh_high ?? meta.high);
-      let prevPdhLow = Number(meta.prev_pdh_low ?? meta.low);
+      // Prev PHD High/Low = high/low of the signal candle (mirror of each other).
+      let prevPdhHigh = Number(meta.high);
+      let prevPdhLow = Number(meta.low);
       if (![prevPdhHigh, prevPdhLow].every(Number.isFinite)) {
         const candle = candleOHLCAtSignal(signal);
         if (candle) {
