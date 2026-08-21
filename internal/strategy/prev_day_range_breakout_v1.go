@@ -65,6 +65,7 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 					"prev_day": prevKey,
 					"day_high": prev.high,
 					"day_low":  prev.low,
+					"open":     candle.Open,
 					"close":    candle.Close,
 				},
 			})

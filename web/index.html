@@ -159,10 +159,24 @@
     }
 
     .metric-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       font-size: 12px;
       text-transform: uppercase;
       letter-spacing: 0.12em;
       color: var(--muted);
+    }
+
+    .stale-mark {
+      display: none;
+      color: var(--red);
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .stale-mark.visible {
+      display: inline;
     }
 
     .metric-value {
@@ -193,6 +207,9 @@
     }
 
     .freshness-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
@@ -551,15 +568,15 @@
           <div class="metric-value" id="metricSymbols">-</div>
         </div>
         <div class="metric">
-          <div class="metric-label">Last Candle Sync</div>
+          <div class="metric-label">Last Candle Sync <span class="stale-mark" id="metricSyncStale" aria-label="stale" hidden>!</span></div>
           <div class="metric-value small" id="metricSync">-</div>
         </div>
         <div class="metric">
-          <div class="metric-label">Last Strategy Recalc</div>
+          <div class="metric-label">Last Strategy Recalc <span class="stale-mark" id="metricStrategyStale" aria-label="stale" hidden>!</span></div>
           <div class="metric-value small" id="metricStrategyRun">-</div>
         </div>
         <div class="metric">
-          <div class="metric-label">Latest Candle</div>
+          <div class="metric-label">Latest Candle <span class="stale-mark" id="metricCandleStale" aria-label="stale" hidden>!</span></div>
           <div class="metric-value small" id="metricLatestCandle">-</div>
         </div>
       </div>
@@ -600,17 +617,17 @@
             <div class="freshness-hint ok" id="freshnessHint">Operational context will appear after the first chart load.</div>
           </div>
           <div class="freshness-card" id="freshnessSyncCard">
-            <div class="freshness-label">Last Candle Sync (UTC+7)</div>
+            <div class="freshness-label">Last Candle Sync (UTC+7) <span class="stale-mark" id="freshnessSyncStale" aria-label="stale" hidden>!</span></div>
             <div class="freshness-value" id="freshnessSync">—</div>
             <div class="freshness-age" id="freshnessSyncAge">—</div>
           </div>
           <div class="freshness-card" id="freshnessStrategyCard">
-            <div class="freshness-label">Last Strategy Recalc (UTC+7)</div>
+            <div class="freshness-label">Last Strategy Recalc (UTC+7) <span class="stale-mark" id="freshnessStrategyStale" aria-label="stale" hidden>!</span></div>
             <div class="freshness-value" id="freshnessStrategy">—</div>
             <div class="freshness-age" id="freshnessStrategyAge">—</div>
           </div>
           <div class="freshness-card" id="freshnessCandleCard">
-            <div class="freshness-label">Latest Candle (UTC+7)</div>
+            <div class="freshness-label">Latest Candle (UTC+7) <span class="stale-mark" id="freshnessCandleStale" aria-label="stale" hidden>!</span></div>
             <div class="freshness-value" id="freshnessCandle">—</div>
             <div class="freshness-age" id="freshnessCandleAge">—</div>
           </div>
@@ -656,7 +673,9 @@
       trades: [],
       selected: null,
       candleTimes: [],
+      candlesByTime: {},
       highlightLine: null,
+      levelLines: [],
       liveSignals: [],
       pendingSignalRef: null
     };
@@ -674,6 +693,9 @@
       metricSync: document.getElementById('metricSync'),
       metricStrategyRun: document.getElementById('metricStrategyRun'),
       metricLatestCandle: document.getElementById('metricLatestCandle'),
+      metricSyncStale: document.getElementById('metricSyncStale'),
+      metricStrategyStale: document.getElementById('metricStrategyStale'),
+      metricCandleStale: document.getElementById('metricCandleStale'),
       freshnessContext: document.getElementById('freshnessContext'),
       freshnessHint: document.getElementById('freshnessHint'),
       freshnessSyncCard: document.getElementById('freshnessSyncCard'),
@@ -685,6 +707,9 @@
       freshnessSyncAge: document.getElementById('freshnessSyncAge'),
       freshnessStrategyAge: document.getElementById('freshnessStrategyAge'),
       freshnessCandleAge: document.getElementById('freshnessCandleAge'),
+      freshnessSyncStale: document.getElementById('freshnessSyncStale'),
+      freshnessStrategyStale: document.getElementById('freshnessStrategyStale'),
+      freshnessCandleStale: document.getElementById('freshnessCandleStale'),
       status: document.getElementById('status'),
       detailEmpty: document.getElementById('detailEmpty'),
       detailContent: document.getElementById('detailContent'),
@@ -813,6 +838,27 @@
 
       const days = Math.round(hours / 24);
       return `${days} d ago`;
+    }
+
+    const STALE_AFTER_MS = 30 * 60 * 1000;
+
+    function isStaleTimestamp(value) {
+      if (!value) {
+        return true;
+      }
+      const target = parseTimestamp(value);
+      if (Number.isNaN(target.getTime())) {
+        return true;
+      }
+      return Date.now() - target.getTime() > STALE_AFTER_MS;
+    }
+
+    function setStaleMark(element, stale) {
+      if (!element) {
+        return;
+      }
+      element.classList.toggle('visible', Boolean(stale));
+      element.hidden = !stale;
     }
 
     function parseFreshnessDate(freshness, key) {
@@ -1156,9 +1202,66 @@
         state.series.removePriceLine(state.highlightLine);
         state.highlightLine = null;
       }
+      if (state.series && state.levelLines.length) {
+        for (const line of state.levelLines) {
+          state.series.removePriceLine(line);
+        }
+        state.levelLines = [];
+      }
       if (state.chart && typeof state.chart.clearCrosshairPosition === 'function') {
         state.chart.clearCrosshairPosition();
       }
+    }
+
+    function selectedSignal() {
+      if (state.selected?.kind !== 'signal') {
+        return null;
+      }
+      return state.signals.find(item => item.ID === state.selected.id) || null;
+    }
+
+    function prevDayLevelsFromMeta(meta, signalTime) {
+      if (!meta || typeof meta !== 'object') {
+        return null;
+      }
+      const dayHigh = Number(meta.day_high);
+      const dayLow = Number(meta.day_low);
+      let open = Number(meta.open);
+      let close = Number(meta.close);
+      if (!Number.isFinite(open) || !Number.isFinite(close)) {
+        const candle = state.candlesByTime?.[signalTime];
+        if (candle) {
+          if (!Number.isFinite(open)) {
+            open = Number(candle.open);
+          }
+          if (!Number.isFinite(close)) {
+            close = Number(candle.close);
+          }
+        }
+      }
+      if (![dayHigh, dayLow, open, close].every(Number.isFinite)) {
+        return null;
+      }
+      return [
+        { price: dayHigh, color: '#1d8f5f', title: 'PDH' },
+        { price: dayLow, color: '#2f6fed', title: 'PDL' },
+        { price: open, color: '#8a7a5a', title: 'Open' },
+        { price: close, color: '#c45c26', title: 'Close' }
+      ];
+    }
+
+    function drawPrevDayLevels(levels) {
+      if (!state.series || !levels?.length) {
+        return;
+      }
+      state.levelLines = levels.map(level => state.series.createPriceLine({
+        price: level.price,
+        color: level.color,
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Solid,
+        axisLabelVisible: true,
+        title: level.title
+      }));
     }
 
     function selectionChartPoint() {
@@ -1239,6 +1342,14 @@
       };
       applyCrosshair();
       requestAnimationFrame(applyCrosshair);
+
+      const signal = selectedSignal();
+      const prevDayLevels = signal ? prevDayLevelsFromMeta(signal.Meta, point.time) : null;
+      if (prevDayLevels) {
+        drawPrevDayLevels(prevDayLevels);
+        return;
+      }
+
       state.highlightLine = state.series.createPriceLine({
         price: point.price,
         color: '#f0b429',
@@ -1344,13 +1455,24 @@
       els.freshnessStrategyAge.textContent = fmtRelativeAge(freshness?.last_strategy_run_at);
       els.freshnessCandleAge.textContent = fmtRelativeAge(freshness?.latest_candle_time);
 
-      setFreshnessCardState(els.freshnessSyncCard, Boolean(freshness?.last_candle_sync_at));
+      const syncStale = isStaleTimestamp(freshness?.last_candle_sync_at);
+      const strategyStale = isStaleTimestamp(freshness?.last_strategy_run_at);
+      const candleStale = isStaleTimestamp(freshness?.latest_candle_time);
+
+      setStaleMark(els.metricSyncStale, syncStale);
+      setStaleMark(els.metricStrategyStale, strategyStale);
+      setStaleMark(els.metricCandleStale, candleStale);
+      setStaleMark(els.freshnessSyncStale, syncStale);
+      setStaleMark(els.freshnessStrategyStale, strategyStale);
+      setStaleMark(els.freshnessCandleStale, candleStale);
+
+      setFreshnessCardState(els.freshnessSyncCard, Boolean(freshness?.last_candle_sync_at), syncStale);
       setFreshnessCardState(
         els.freshnessStrategyCard,
         Boolean(freshness?.last_strategy_run_at),
-        classification.level === 'warn' && Boolean(freshness?.last_strategy_run_at)
+        strategyStale || (classification.level === 'warn' && Boolean(freshness?.last_strategy_run_at))
       );
-      setFreshnessCardState(els.freshnessCandleCard, Boolean(freshness?.latest_candle_time));
+      setFreshnessCardState(els.freshnessCandleCard, Boolean(freshness?.latest_candle_time), candleStale);
 
       els.metricSync.textContent = fmtFreshness(freshness?.last_candle_sync_at);
       els.metricStrategyRun.textContent = fmtFreshness(freshness?.last_strategy_run_at);
@@ -1587,6 +1709,15 @@
         }
 
         state.candleTimes = candles.map(item => toChartUnix(item.OpenTime));
+        state.candlesByTime = Object.fromEntries(candles.map((item, index) => [
+          state.candleTimes[index],
+          {
+            open: Number(item.Open),
+            high: Number(item.High),
+            low: Number(item.Low),
+            close: Number(item.Close)
+          }
+        ]));
         state.series.setData(candles.map((item, index) => ({
           time: state.candleTimes[index],
           open: Number(item.Open),
