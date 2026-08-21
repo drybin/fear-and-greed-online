@@ -18,10 +18,8 @@ func (s *PrevDayRangeBreakoutV1) Slug() string {
 }
 
 type dayRange struct {
-	open  float64
-	high  float64
-	low   float64
-	close float64
+	high float64
+	low  float64
 }
 
 func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
@@ -54,13 +52,17 @@ func (s *PrevDayRangeBreakoutV1) Run(input RunInput) (RunOutput, error) {
 		}
 
 		meta := map[string]any{
-			"prev_day":  prevKey,
-			"day_open":  prev.open,
-			"day_high":  prev.high,
-			"day_low":   prev.low,
-			"day_close": prev.close,
-			"open":      candle.Open,
-			"close":     candle.Close,
+			"prev_day": prevKey,
+			"day_high": prev.high,
+			"day_low":  prev.low,
+			"open":     candle.Open,
+			"close":    candle.Close,
+		}
+		prevPrevKey := moscowDayKey(local.AddDate(0, 0, -2))
+		if before, ok := rangesByDay[prevPrevKey]; ok {
+			meta["prev_prev_day"] = prevPrevKey
+			meta["prev_pdh_high"] = before.high
+			meta["prev_pdh_low"] = before.low
 		}
 
 		if candle.Close > prev.high {
@@ -102,12 +104,7 @@ func buildMoscowDayRanges(candles []domain.Candle, msk *time.Location) map[strin
 		key := moscowDayKey(candle.Time.In(msk))
 		existing, ok := rangesByDay[key]
 		if !ok {
-			rangesByDay[key] = dayRange{
-				open:  candle.Open,
-				high:  candle.High,
-				low:   candle.Low,
-				close: candle.Close,
-			}
+			rangesByDay[key] = dayRange{high: candle.High, low: candle.Low}
 			continue
 		}
 		if candle.High > existing.high {
@@ -116,7 +113,6 @@ func buildMoscowDayRanges(candles []domain.Candle, msk *time.Location) map[strin
 		if candle.Low < existing.low {
 			existing.low = candle.Low
 		}
-		existing.close = candle.Close
 		rangesByDay[key] = existing
 	}
 	return rangesByDay

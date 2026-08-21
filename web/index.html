@@ -1228,11 +1228,23 @@
       return date.toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
     }
 
-    function prevDayOHLCFromCandles(prevDayKey) {
-      if (!prevDayKey || !state.rawCandles.length) {
+    function shiftMoscowDayKey(dayKey, deltaDays) {
+      if (!dayKey || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) {
+        return '';
+      }
+      const date = new Date(`${dayKey}T12:00:00+03:00`);
+      if (Number.isNaN(date.getTime())) {
+        return '';
+      }
+      date.setUTCDate(date.getUTCDate() + deltaDays);
+      return date.toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
+    }
+
+    function dayHighLowFromCandles(dayKey) {
+      if (!dayKey || !state.rawCandles.length) {
         return null;
       }
-      const dayCandles = state.rawCandles.filter(item => moscowDayKey(item.OpenTime) === prevDayKey);
+      const dayCandles = state.rawCandles.filter(item => moscowDayKey(item.OpenTime) === dayKey);
       if (!dayCandles.length) {
         return null;
       }
@@ -1242,51 +1254,59 @@
         high = Math.max(high, Number(candle.High));
         low = Math.min(low, Number(candle.Low));
       }
-      return {
-        open: Number(dayCandles[0].Open),
-        high,
-        low,
-        close: Number(dayCandles[dayCandles.length - 1].Close)
-      };
+      if (![high, low].every(Number.isFinite)) {
+        return null;
+      }
+      return { high, low };
     }
 
     function prevDayLevelsFromMeta(meta) {
       if (!meta || typeof meta !== 'object') {
         return null;
       }
-      let open = Number(meta.day_open);
-      let high = Number(meta.day_high);
-      let low = Number(meta.day_low);
-      let close = Number(meta.day_close);
-      if (![open, high, low, close].every(Number.isFinite)) {
-        const fromCandles = prevDayOHLCFromCandles(meta.prev_day);
-        if (fromCandles) {
-          if (!Number.isFinite(open)) {
-            open = fromCandles.open;
+
+      let pdh = Number(meta.day_high);
+      let pdl = Number(meta.day_low);
+      let prevPdhHigh = Number(meta.prev_pdh_high);
+      let prevPdhLow = Number(meta.prev_pdh_low);
+
+      if (![pdh, pdl].every(Number.isFinite)) {
+        const prev = dayHighLowFromCandles(meta.prev_day);
+        if (prev) {
+          if (!Number.isFinite(pdh)) {
+            pdh = prev.high;
           }
-          if (!Number.isFinite(high)) {
-            high = fromCandles.high;
-          }
-          if (!Number.isFinite(low)) {
-            low = fromCandles.low;
-          }
-          if (!Number.isFinite(close)) {
-            close = fromCandles.close;
+          if (!Number.isFinite(pdl)) {
+            pdl = prev.low;
           }
         }
       }
+
+      if (![prevPdhHigh, prevPdhLow].every(Number.isFinite)) {
+        const prevPrevKey = meta.prev_prev_day || shiftMoscowDayKey(meta.prev_day, -1);
+        const before = dayHighLowFromCandles(prevPrevKey);
+        if (before) {
+          if (!Number.isFinite(prevPdhHigh)) {
+            prevPdhHigh = before.high;
+          }
+          if (!Number.isFinite(prevPdhLow)) {
+            prevPdhLow = before.low;
+          }
+        }
+      }
+
       const levels = [];
-      if (Number.isFinite(open)) {
-        levels.push({ price: open, color: '#8a7a5a', title: 'Prev Open' });
+      if (Number.isFinite(pdh)) {
+        levels.push({ price: pdh, color: '#1d8f5f', title: 'PDH' });
       }
-      if (Number.isFinite(high)) {
-        levels.push({ price: high, color: '#1d8f5f', title: 'Prev High' });
+      if (Number.isFinite(pdl)) {
+        levels.push({ price: pdl, color: '#2f6fed', title: 'PDL' });
       }
-      if (Number.isFinite(low)) {
-        levels.push({ price: low, color: '#2f6fed', title: 'Prev Low' });
+      if (Number.isFinite(prevPdhLow)) {
+        levels.push({ price: prevPdhLow, color: '#8a7a5a', title: 'Prev PHD Low' });
       }
-      if (Number.isFinite(close)) {
-        levels.push({ price: close, color: '#c45c26', title: 'Prev Close' });
+      if (Number.isFinite(prevPdhHigh)) {
+        levels.push({ price: prevPdhHigh, color: '#c45c26', title: 'Prev PHD High' });
       }
       return levels.length ? levels : null;
     }

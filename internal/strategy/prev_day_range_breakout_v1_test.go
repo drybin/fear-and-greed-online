@@ -55,17 +55,14 @@ func TestPrevDayRangeBreakoutV1BreakoutUp(t *testing.T) {
 	if sig.Type != "alert" || sig.Side != "long" || sig.Title != "Prev-day high breakout" {
 		t.Fatalf("unexpected signal: %#v", sig)
 	}
-	if got := sig.Meta["day_open"]; got != 100.0 {
-		t.Fatalf("expected day_open 100, got %#v", got)
-	}
 	if got := sig.Meta["day_high"]; got != 110.0 {
 		t.Fatalf("expected day_high 110, got %#v", got)
 	}
 	if got := sig.Meta["day_low"]; got != 90.0 {
 		t.Fatalf("expected day_low 90, got %#v", got)
 	}
-	if got := sig.Meta["day_close"]; got != 100.0 {
-		t.Fatalf("expected day_close 100, got %#v", got)
+	if _, ok := sig.Meta["prev_pdh_high"]; ok {
+		t.Fatalf("expected no prev_pdh_high without T-2 history, got %#v", sig.Meta)
 	}
 	if len(out.Trades) != 0 {
 		t.Fatalf("expected no trades, got %#v", out.Trades)
@@ -171,6 +168,43 @@ func TestPrevDayRangeBreakoutV1InsufficientHistory(t *testing.T) {
 	}
 	if len(out.Signals) != 0 || len(out.Trades) != 0 {
 		t.Fatalf("expected empty output without previous day, got %#v", out)
+	}
+}
+
+func TestPrevDayRangeBreakoutV1IncludesPrevPDHLevels(t *testing.T) {
+	msk := mustMoscow()
+	dayBeforePrev := time.Date(2026, 7, 7, 0, 0, 0, 0, msk)
+	prevDay := time.Date(2026, 7, 8, 0, 0, 0, 0, msk)
+	currDay := time.Date(2026, 7, 9, 0, 0, 0, 0, msk)
+
+	candles := []domain.Candle{
+		moscowHourCandle(dayBeforePrev, 10, 80, 120, 70, 90),
+		moscowHourCandle(prevDay, 10, 100, 110, 95, 105),
+		moscowHourCandle(prevDay, 14, 105, 108, 90, 100),
+		moscowHourCandle(currDay, 10, 109, 111, 108, 111),
+	}
+
+	out, err := NewPrevDayRangeBreakoutV1().Run(RunInput{
+		StrategySlug: "prev-day-range-breakout-v1",
+		Symbol:       "BTC",
+		Timeframe:    "1h",
+		Candles:      candles,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(out.Signals) != 1 {
+		t.Fatalf("expected 1 signal, got %d: %#v", len(out.Signals), out.Signals)
+	}
+	sig := out.Signals[0]
+	if got := sig.Meta["prev_pdh_high"]; got != 120.0 {
+		t.Fatalf("expected prev_pdh_high 120, got %#v", got)
+	}
+	if got := sig.Meta["prev_pdh_low"]; got != 70.0 {
+		t.Fatalf("expected prev_pdh_low 70, got %#v", got)
+	}
+	if got := sig.Meta["prev_prev_day"]; got != "2026-07-07" {
+		t.Fatalf("expected prev_prev_day 2026-07-07, got %#v", got)
 	}
 }
 
