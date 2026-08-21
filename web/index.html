@@ -396,7 +396,9 @@
 
     .item.selected,
     .item.side-long.selected,
-    .item.side-short.selected {
+    .item.side-short.selected,
+    .item.side-alert-long.selected,
+    .item.side-alert-short.selected {
       border-color: #f0b429;
       background: rgba(240, 180, 41, 0.18);
       box-shadow: 0 0 0 2px rgba(240, 180, 41, 0.4);
@@ -411,6 +413,14 @@
     }
 
     .item.side-short {
+      border-color: rgba(47, 111, 237, 0.45);
+    }
+
+    .item.side-alert-long {
+      border-color: rgba(240, 180, 41, 0.55);
+    }
+
+    .item.side-alert-short {
       border-color: rgba(47, 111, 237, 0.45);
     }
 
@@ -433,6 +443,14 @@
 
     .signal-dot-exit {
       background: #b53b2f;
+    }
+
+    .signal-dot-alert-long {
+      background: #f0b429;
+    }
+
+    .signal-dot-alert-short {
+      background: #2f6fed;
     }
 
     .detail-grid {
@@ -1348,10 +1366,27 @@
         return 'signal-dot-entry';
       }
       if (type === 'alert' && item.Side === 'short') {
-        return 'signal-dot-exit';
+        return 'signal-dot-alert-short';
       }
       if (type === 'alert' && item.Side === 'long') {
-        return 'signal-dot-entry';
+        return 'signal-dot-alert-long';
+      }
+      return '';
+    }
+
+    function signalSideClass(item) {
+      const type = String(item?.SignalType || '').toLowerCase();
+      if (type === 'alert' && item.Side === 'long') {
+        return ' side-alert-long';
+      }
+      if (type === 'alert' && item.Side === 'short') {
+        return ' side-alert-short';
+      }
+      if (item.Side === 'long') {
+        return ' side-long';
+      }
+      if (item.Side === 'short') {
+        return ' side-short';
       }
       return '';
     }
@@ -1376,8 +1411,7 @@
       for (const item of rows) {
         const node = document.createElement('div');
         const selected = state.selected?.kind === 'signal' && state.selected.id === item.ID;
-        const sideClass = item.Side === 'long' ? ' side-long' : item.Side === 'short' ? ' side-short' : '';
-        node.className = `item${sideClass}${selected ? ' selected' : ''}`;
+        node.className = `item${signalSideClass(item)}${selected ? ' selected' : ''}`;
         node.innerHTML = `
           <div class="item-head">${signalDotHTML(item)}<strong>${escapeHTML(item.AssetCode)} · ${escapeHTML(item.Timeframe)} · ${escapeHTML(item.SignalType.toUpperCase())} · ${escapeHTML(item.Side.toUpperCase())}</strong></div>
           <div class="meta-line">${escapeHTML(item.StrategyName || item.StrategySlug)}</div>
@@ -1414,8 +1448,7 @@
       for (const item of rows) {
         const node = document.createElement('div');
         const selected = selectedId === item.ID;
-        const sideClass = item.Side === 'long' ? ' side-long' : item.Side === 'short' ? ' side-short' : '';
-        node.className = `item${sideClass}${selected ? ' selected' : ''}`;
+        node.className = `item${signalSideClass(item)}${selected ? ' selected' : ''}`;
         node.innerHTML = `
           <div class="item-head">${signalDotHTML(item)}<strong>${item.SignalType.toUpperCase()} · ${item.Side.toUpperCase()}</strong></div>
           <div class="meta-line">${fmtDate(item.SignalTime)}</div>
