@@ -673,7 +673,6 @@
       trades: [],
       selected: null,
       candleTimes: [],
-      candlesByTime: {},
       highlightLine: null,
       levelLines: [],
       liveSignals: [],
@@ -1220,33 +1219,18 @@
       return state.signals.find(item => item.ID === state.selected.id) || null;
     }
 
-    function prevDayLevelsFromMeta(meta, signalTime) {
+    function prevDayLevelsFromMeta(meta) {
       if (!meta || typeof meta !== 'object') {
         return null;
       }
       const dayHigh = Number(meta.day_high);
       const dayLow = Number(meta.day_low);
-      let open = Number(meta.open);
-      let close = Number(meta.close);
-      if (!Number.isFinite(open) || !Number.isFinite(close)) {
-        const candle = state.candlesByTime?.[signalTime];
-        if (candle) {
-          if (!Number.isFinite(open)) {
-            open = Number(candle.open);
-          }
-          if (!Number.isFinite(close)) {
-            close = Number(candle.close);
-          }
-        }
-      }
-      if (![dayHigh, dayLow, open, close].every(Number.isFinite)) {
+      if (![dayHigh, dayLow].every(Number.isFinite)) {
         return null;
       }
       return [
-        { price: dayHigh, color: '#1d8f5f', title: 'PDH' },
-        { price: dayLow, color: '#2f6fed', title: 'PDL' },
-        { price: open, color: '#8a7a5a', title: 'Open' },
-        { price: close, color: '#c45c26', title: 'Close' }
+        { price: dayHigh, color: '#1d8f5f', title: 'Prev High' },
+        { price: dayLow, color: '#2f6fed', title: 'Prev Low' }
       ];
     }
 
@@ -1344,7 +1328,7 @@
       requestAnimationFrame(applyCrosshair);
 
       const signal = selectedSignal();
-      const prevDayLevels = signal ? prevDayLevelsFromMeta(signal.Meta, point.time) : null;
+      const prevDayLevels = signal ? prevDayLevelsFromMeta(signal.Meta) : null;
       if (prevDayLevels) {
         drawPrevDayLevels(prevDayLevels);
         return;
@@ -1709,15 +1693,6 @@
         }
 
         state.candleTimes = candles.map(item => toChartUnix(item.OpenTime));
-        state.candlesByTime = Object.fromEntries(candles.map((item, index) => [
-          state.candleTimes[index],
-          {
-            open: Number(item.Open),
-            high: Number(item.High),
-            low: Number(item.Low),
-            close: Number(item.Close)
-          }
-        ]));
         state.series.setData(candles.map((item, index) => ({
           time: state.candleTimes[index],
           open: Number(item.Open),
