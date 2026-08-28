@@ -17,10 +17,11 @@ type Config struct {
 }
 
 type TelegramConfig struct {
-	Enabled  bool
-	BotToken string
-	ChatID   string
-	BaseURL  string
+	Enabled     bool
+	BotToken    string
+	ChatID      string
+	BaseURL     string
+	Socks5Proxy string
 }
 
 type PostgresConfig struct {
@@ -42,10 +43,11 @@ func Load() (*Config, error) {
 		BinanceBaseURL:   envOrDefault("BINANCE_BASE_URL", "https://api.binance.com"),
 		SyncBackfillDays: intEnvOrDefault("SYNC_BACKFILL_DAYS", 30),
 		Telegram: TelegramConfig{
-			Enabled:  boolEnvOrDefault("TG_ENABLED", false),
-			BotToken: envOrDefault("TG_BOT_TOKEN", ""),
-			ChatID:   envOrDefault("TG_CHAT_ID", ""),
-			BaseURL:  envOrDefault("TG_BASE_URL", "http://dr54.ru/"),
+			Enabled:     boolEnvOrDefault("TG_ENABLED", false),
+			BotToken:    envOrDefault("TG_BOT_TOKEN", ""),
+			ChatID:      envOrDefault("TG_CHAT_ID", ""),
+			BaseURL:     envOrDefault("TG_BASE_URL", "http://dr54.ru/"),
+			Socks5Proxy: envOrDefault("TG_SOCKS5_PROXY", ""),
 		},
 		Postgres: PostgresConfig{
 			Host:     envOrDefault("POSTGRES_HOST", "127.0.0.1"),

@@ -94,6 +94,11 @@ func runStrategies(ctx context.Context, cfg *config.Config, db *sql.DB, args []s
 		}
 	}
 
+	notifier, err := buildEntrySignalNotifier(cfg, db)
+	if err != nil {
+		return err
+	}
+
 	runner := strategysvc.NewRunner(
 		postgres.NewStrategyRepository(db),
 		postgres.NewSymbolRepository(db),
@@ -108,23 +113,27 @@ func runStrategies(ctx context.Context, cfg *config.Config, db *sql.DB, args []s
 			engine.NewPrevDayRangeBreakoutV1(),
 		),
 		cfg.SyncBackfillDays,
-		buildEntrySignalNotifier(cfg, db),
+		notifier,
 	)
 
 	return runner.Run(ctx, strategyFilter, assetFilter)
 }
 
-func buildEntrySignalNotifier(cfg *config.Config, db *sql.DB) strategysvc.EntrySignalNotifier {
+func buildEntrySignalNotifier(cfg *config.Config, db *sql.DB) (strategysvc.EntrySignalNotifier, error) {
 	if !cfg.Telegram.Enabled {
-		return nil
+		return nil, nil
+	}
+	client, err := telegram.NewClient(cfg.Telegram.BotToken, cfg.Telegram.Socks5Proxy)
+	if err != nil {
+		return nil, err
 	}
 	return notifications.NewTelegramSignalNotifier(
 		postgres.NewSignalRepository(db),
 		postgres.NewSignalNotificationRepository(db),
-		telegram.NewClient(cfg.Telegram.BotToken),
+		client,
 		cfg.Telegram.ChatID,
 		cfg.Telegram.BaseURL,
-	)
+	), nil
 }
 
 func runListActiveSymbols(ctx context.Context, db *sql.DB) error {

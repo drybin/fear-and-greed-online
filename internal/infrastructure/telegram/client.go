@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -14,13 +15,21 @@ type Client struct {
 	httpClient *http.Client
 }
 
-func NewClient(botToken string) *Client {
-	return &Client{
-		botToken: botToken,
-		httpClient: &http.Client{
-			Timeout: 15 * time.Second,
-		},
+func NewClient(botToken, socks5Proxy string) (*Client, error) {
+	httpClient := &http.Client{
+		Timeout: 15 * time.Second,
 	}
+	if strings.TrimSpace(socks5Proxy) != "" {
+		transport, err := newSOCKS5Transport(socks5Proxy)
+		if err != nil {
+			return nil, err
+		}
+		httpClient.Transport = transport
+	}
+	return &Client{
+		botToken:   botToken,
+		httpClient: httpClient,
+	}, nil
 }
 
 type sendMessageRequest struct {

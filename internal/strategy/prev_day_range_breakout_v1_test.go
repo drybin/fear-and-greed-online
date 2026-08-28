@@ -223,7 +223,7 @@ func TestPrevDayRangeBreakoutV1PrevPDHHighUsesSignalHighOnFreshHigh(t *testing.T
 
 	candles := []domain.Candle{
 		moscowHourCandle(dayBeforePrev, 10, 80, 100, 70, 90), // prior high 100 < PDH 110
-		moscowHourCandle(prevDay, 10, 99, 110, 95, 99),        // close stays inside prior range
+		moscowHourCandle(prevDay, 10, 99, 110, 95, 99),       // close stays inside prior range
 		moscowHourCandle(prevDay, 14, 99, 108, 90, 100),
 		moscowHourCandle(currDay, 10, 109, 115, 108, 111), // signal high 115
 	}

@@ -113,6 +113,7 @@ go run ./cmd/worker run-strategies --strategy breakout-retest-v1 --asset ETH
 | `TG_BOT_TOKEN` | empty | Telegram bot token (required when `TG_ENABLED=true`) |
 | `TG_CHAT_ID` | empty | Telegram channel/chat id (required when `TG_ENABLED=true`) |
 | `TG_BASE_URL` | `http://dr54.ru/` | Base URL used in deep-links to specific signals |
+| `TG_SOCKS5_PROXY` | empty | Optional SOCKS5 proxy for Telegram API (e.g. `socks5://127.0.0.1:1080`) |
 
 The API, worker, and migrate commands auto-load a nearby `.env` file (without overriding already-exported shell variables) and auto-apply pending SQL migrations on startup. The API fails fast when PostgreSQL is unreachable or migrations cannot be applied.
 
