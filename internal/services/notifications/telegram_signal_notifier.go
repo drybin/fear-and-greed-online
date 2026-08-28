@@ -16,11 +16,13 @@ type telegramSender interface {
 }
 
 type TelegramSignalNotifier struct {
-	signals       *postgres.SignalRepository
-	notifications *postgres.SignalNotificationRepository
-	sender        telegramSender
-	chatID        string
-	chartBaseURL  string
+	signals           *postgres.SignalRepository
+	notifications     *postgres.SignalNotificationRepository
+	sender            telegramSender
+	chatID            string
+	chartBaseURL      string
+	maxMessagesPerRun int
+	sentCount         int
 }
 
 func NewTelegramSignalNotifier(
@@ -29,22 +31,33 @@ func NewTelegramSignalNotifier(
 	sender telegramSender,
 	chatID string,
 	chartBaseURL string,
+	maxMessagesPerRun int,
 ) *TelegramSignalNotifier {
 	return &TelegramSignalNotifier{
-		signals:       signals,
-		notifications: notifications,
-		sender:        sender,
-		chatID:        chatID,
-		chartBaseURL:  chartBaseURL,
+		signals:           signals,
+		notifications:     notifications,
+		sender:            sender,
+		chatID:            chatID,
+		chartBaseURL:      chartBaseURL,
+		maxMessagesPerRun: maxMessagesPerRun,
 	}
 }
 
 func (n *TelegramSignalNotifier) NotifyEntries(ctx context.Context, runID int64) error {
-	items, err := n.signals.ListEntryByRun(ctx, runID)
+	if n.maxMessagesPerRun > 0 && n.sentCount >= n.maxMessagesPerRun {
+		return nil
+	}
+
+	items, err := n.signals.ListLatestEntryByRun(ctx, runID)
 	if err != nil {
 		return err
 	}
 	for _, item := range items {
+		if n.maxMessagesPerRun > 0 && n.sentCount >= n.maxMessagesPerRun {
+			log.Printf("telegram send cap reached (%d messages per run-strategies), skipping remaining entry notifications", n.maxMessagesPerRun)
+			return nil
+		}
+
 		signalID := item.ID
 		claimed, err := n.notifications.TryClaim(ctx, "telegram", item.DedupeKey, &signalID)
 		if err != nil {
@@ -58,6 +71,7 @@ func (n *TelegramSignalNotifier) NotifyEntries(ctx context.Context, runID int64)
 			_ = n.notifications.ReleaseClaim(ctx, "telegram", item.DedupeKey)
 			return err
 		}
+		n.sentCount++
 		if err := n.notifications.MarkSent(ctx, "telegram", item.DedupeKey); err != nil {
 			log.Printf("telegram sent but mark notification failed for dedupe_key=%s: %v", item.DedupeKey, err)
 		}

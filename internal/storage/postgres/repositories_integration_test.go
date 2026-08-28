@@ -377,6 +377,70 @@ func TestSignalRepositoryListEntryByRunOnlyReturnsEntrySignals(t *testing.T) {
 	}
 }
 
+func TestSignalRepositoryListLatestEntryByRunOnlyReturnsLatestCandleEntries(t *testing.T) {
+	db := testutil.CreateTestDatabase(t)
+	ctx := context.Background()
+
+	strategies := postgres.NewStrategyRepository(db)
+	symbols := postgres.NewSymbolRepository(db)
+	timeframes := postgres.NewTimeframeRepository(db)
+	runs := postgres.NewStrategyRunRepository(db)
+	signals := postgres.NewSignalRepository(db)
+
+	strategy, err := strategies.FindBySlug(ctx, "trend-long-v1")
+	if err != nil || strategy == nil {
+		t.Fatalf("find strategy: %v", err)
+	}
+	symbol, err := symbols.FindByAssetCode(ctx, "BTC")
+	if err != nil || symbol == nil {
+		t.Fatalf("find BTC symbol: %v", err)
+	}
+	timeframe, err := timeframes.FindByCode(ctx, "1h")
+	if err != nil || timeframe == nil {
+		t.Fatalf("find 1h timeframe: %v", err)
+	}
+
+	from := time.Date(2026, 8, 18, 3, 0, 0, 0, time.UTC)
+	latest := time.Date(2026, 8, 18, 5, 0, 0, 0, time.UTC)
+	runID, err := runs.Start(ctx, strategy.ID, symbol.ID, timeframe.ID, strategy.DefaultParams, &from, &latest, 12)
+	if err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	if err := signals.UpsertMany(ctx, runID, strategy.ID, symbol.ID, timeframe.ID, []domain.Signal{
+		{
+			DedupeKey: "old-entry|" + from.Format(time.RFC3339),
+			Time:      from,
+			Type:      "entry",
+			Side:      "long",
+			Price:     100,
+			Status:    "confirmed",
+			Title:     "old entry",
+		},
+		{
+			DedupeKey: "latest-entry|" + latest.Format(time.RFC3339),
+			Time:      latest,
+			Type:      "entry",
+			Side:      "long",
+			Price:     101.25,
+			Status:    "confirmed",
+			Title:     "latest entry",
+		},
+	}); err != nil {
+		t.Fatalf("insert signals: %v", err)
+	}
+
+	items, err := signals.ListLatestEntryByRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("list latest entry by run: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected one latest entry signal, got %d: %#v", len(items), items)
+	}
+	if items[0].Title != "latest entry" {
+		t.Fatalf("unexpected latest entry payload: %#v", items[0])
+	}
+}
+
 func TestSignalNotificationRepositoryClaimAndRelease(t *testing.T) {
 	db := testutil.CreateTestDatabase(t)
 	ctx := context.Background()

@@ -114,6 +114,7 @@ go run ./cmd/worker run-strategies --strategy breakout-retest-v1 --asset ETH
 | `TG_CHAT_ID` | empty | Telegram channel/chat id (required when `TG_ENABLED=true`) |
 | `TG_BASE_URL` | `http://dr54.ru/` | Base URL used in deep-links to specific signals |
 | `TG_SOCKS5_PROXY` | empty | Optional SOCKS5 proxy for Telegram API (e.g. `socks5://127.0.0.1:1080`) |
+| `TG_MAX_MESSAGES_PER_RUN` | `5` | Max Telegram messages per one `run-strategies` invocation (`0` = unlimited) |
 
 The API, worker, and migrate commands auto-load a nearby `.env` file (without overriding already-exported shell variables) and auto-apply pending SQL migrations on startup. The API fails fast when PostgreSQL is unreachable or migrations cannot be applied.
 
@@ -219,7 +220,7 @@ go run ./cmd/worker run-strategies --strategy trend-long-v1 --asset BTC
 go run ./cmd/worker run-strategies --strategy breakout-retest-v1 --asset ETH
 ```
 
-When `TG_ENABLED=true`, `run-strategies` sends Telegram notifications only for new `entry` signals. Each signal (by dedupe key) is sent once, and includes algorithm, coin, timeframe, and a deep-link to the specific signal on `TG_BASE_URL`.
+When `TG_ENABLED=true`, `run-strategies` sends Telegram notifications only for new `entry` signals on the **latest candle** of each strategy run (same idea as `/signals/now`). Each signal (by dedupe key) is sent once, and includes algorithm, coin, timeframe, and a deep-link to the specific signal on `TG_BASE_URL`.
 
 Available strategies (seeded in migration `000005`):
 

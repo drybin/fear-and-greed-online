@@ -208,7 +208,15 @@ func (r *SignalRepository) ListOnLatestCandles(ctx context.Context) ([]LiveSigna
 }
 
 func (r *SignalRepository) ListEntryByRun(ctx context.Context, runID int64) ([]EntrySignalRecord, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	return r.listEntryByRun(ctx, runID, false)
+}
+
+func (r *SignalRepository) ListLatestEntryByRun(ctx context.Context, runID int64) ([]EntrySignalRecord, error) {
+	return r.listEntryByRun(ctx, runID, true)
+}
+
+func (r *SignalRepository) listEntryByRun(ctx context.Context, runID int64, latestOnly bool) ([]EntrySignalRecord, error) {
+	query := `
 		SELECT
 			s.id, s.strategy_id, s.symbol_id, s.timeframe_id, s.dedupe_key,
 			s.signal_time, s.signal_type, s.side, s.price, s.confidence, s.status, s.title, s.details, s.meta,
@@ -218,9 +226,15 @@ func (r *SignalRepository) ListEntryByRun(ctx context.Context, runID int64) ([]E
 		INNER JOIN timeframes tf ON tf.id = s.timeframe_id
 		INNER JOIN strategies st ON st.id = s.strategy_id
 		WHERE s.strategy_run_id = $1
-			AND s.signal_type = 'entry'
-		ORDER BY s.signal_time ASC, s.id ASC
-	`, runID)
+			AND s.signal_type = 'entry'`
+	if latestOnly {
+		query += `
+			AND s.signal_time = (SELECT input_to FROM strategy_runs WHERE id = $1)`
+	}
+	query += `
+		ORDER BY s.signal_time ASC, s.id ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, runID)
 	if err != nil {
 		return nil, fmt.Errorf("list entry signals by run: %w", err)
 	}

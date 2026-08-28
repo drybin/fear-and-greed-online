@@ -5,10 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
+
+const maxSendAttempts = 4
+
+var retryAfterPattern = regexp.MustCompile(`retry after (\d+)`)
 
 type Client struct {
 	botToken   string
@@ -17,7 +24,7 @@ type Client struct {
 
 func NewClient(botToken, socks5Proxy string) (*Client, error) {
 	httpClient := &http.Client{
-		Timeout: 15 * time.Second,
+		Timeout: 30 * time.Second,
 	}
 	if strings.TrimSpace(socks5Proxy) != "" {
 		transport, err := newSOCKS5Transport(socks5Proxy)
@@ -41,6 +48,9 @@ type sendMessageRequest struct {
 type apiResponse struct {
 	OK          bool   `json:"ok"`
 	Description string `json:"description"`
+	Parameters  *struct {
+		RetryAfter int `json:"retry_after"`
+	} `json:"parameters"`
 }
 
 func (c *Client) SendMessage(ctx context.Context, chatID, text string) error {
@@ -54,25 +64,67 @@ func (c *Client) SendMessage(ctx context.Context, chatID, text string) error {
 	}
 
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", c.botToken)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("create telegram request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
+	var lastErr error
+	for attempt := 1; attempt <= maxSendAttempts; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+		if err != nil {
+			return fmt.Errorf("create telegram request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("send telegram request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("send telegram request: %w", err)
+		}
 
+		parsed, readErr := decodeAPIResponse(resp.Body)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			return readErr
+		}
+
+		if resp.StatusCode == http.StatusOK && parsed.OK {
+			return nil
+		}
+
+		lastErr = fmt.Errorf("telegram send failed: status=%s description=%s", resp.Status, parsed.Description)
+		if resp.StatusCode != http.StatusTooManyRequests || attempt == maxSendAttempts {
+			return lastErr
+		}
+
+		wait := retryAfter(parsed, resp.Header.Get("Retry-After"))
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return lastErr
+}
+
+func decodeAPIResponse(body io.Reader) (apiResponse, error) {
 	var parsed apiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
-		return fmt.Errorf("decode telegram response: %w", err)
+	if err := json.NewDecoder(body).Decode(&parsed); err != nil {
+		return apiResponse{}, fmt.Errorf("decode telegram response: %w", err)
 	}
-	if resp.StatusCode != http.StatusOK || !parsed.OK {
-		return fmt.Errorf("telegram send failed: status=%s description=%s", resp.Status, parsed.Description)
-	}
+	return parsed, nil
+}
 
-	return nil
+func retryAfter(parsed apiResponse, header string) time.Duration {
+	if parsed.Parameters != nil && parsed.Parameters.RetryAfter > 0 {
+		return time.Duration(parsed.Parameters.RetryAfter) * time.Second
+	}
+	if header != "" {
+		if seconds, err := strconv.Atoi(strings.TrimSpace(header)); err == nil && seconds > 0 {
+			return time.Duration(seconds) * time.Second
+		}
+	}
+	if match := retryAfterPattern.FindStringSubmatch(parsed.Description); len(match) == 2 {
+		if seconds, err := strconv.Atoi(match[1]); err == nil && seconds > 0 {
+			return time.Duration(seconds) * time.Second
+		}
+	}
+	return time.Second
 }

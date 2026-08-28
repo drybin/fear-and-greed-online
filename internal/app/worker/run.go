@@ -133,6 +133,7 @@ func buildEntrySignalNotifier(cfg *config.Config, db *sql.DB) (strategysvc.Entry
 		client,
 		cfg.Telegram.ChatID,
 		cfg.Telegram.BaseURL,
+		cfg.Telegram.MaxMessagesPerRun,
 	), nil
 }
 

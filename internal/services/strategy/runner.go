@@ -184,7 +184,7 @@ func (r *Runner) runOne(ctx context.Context, def domain.Definition, impl engine.
 	}
 	if r.notifier != nil {
 		if err := r.notifier.NotifyEntries(ctx, runID); err != nil {
-			return fmt.Errorf("notify entry signals for run %d: %w", runID, err)
+			log.Printf("telegram notify failed for run %d (%s %s %s): %v", runID, def.Slug, symbol.AssetCode, timeframe.Code, err)
 		}
 	}
 

@@ -84,6 +84,7 @@ func TestTelegramSignalNotifierSendsOnlyEntryOnce(t *testing.T) {
 		sender,
 		"-100123456789",
 		"http://dr54.ru/",
+		0,
 	)
 	if err := notifier.NotifyEntries(ctx, runID); err != nil {
 		t.Fatalf("notify entries first: %v", err)
@@ -146,6 +147,7 @@ func TestTelegramSignalNotifierReleasesClaimOnSendFailure(t *testing.T) {
 		sender,
 		"-100123456789",
 		"http://dr54.ru/",
+		0,
 	)
 	if err := notifier.NotifyEntries(ctx, runID); err == nil {
 		t.Fatal("expected notify to fail")
@@ -158,5 +160,74 @@ func TestTelegramSignalNotifierReleasesClaimOnSendFailure(t *testing.T) {
 	}
 	if len(sender.sent) != 1 {
 		t.Fatalf("expected successful retry to send one message, got %d", len(sender.sent))
+	}
+}
+
+func TestTelegramSignalNotifierRespectsSendCapPerWorkerRun(t *testing.T) {
+	db := testutil.CreateTestDatabase(t)
+	ctx := context.Background()
+
+	strategies := postgres.NewStrategyRepository(db)
+	symbols := postgres.NewSymbolRepository(db)
+	timeframes := postgres.NewTimeframeRepository(db)
+	runs := postgres.NewStrategyRunRepository(db)
+	signals := postgres.NewSignalRepository(db)
+
+	strategy, _ := strategies.FindBySlug(ctx, "trend-long-v1")
+	symbol, _ := symbols.FindByAssetCode(ctx, "BTC")
+	timeframe, _ := timeframes.FindByCode(ctx, "1h")
+
+	firstAt := time.Date(2026, 8, 18, 6, 0, 0, 0, time.UTC)
+	secondAt := time.Date(2026, 8, 18, 7, 0, 0, 0, time.UTC)
+
+	runID1, err := runs.Start(ctx, strategy.ID, symbol.ID, timeframe.ID, strategy.DefaultParams, &firstAt, &firstAt, 10)
+	if err != nil {
+		t.Fatalf("start first run: %v", err)
+	}
+	if err := signals.UpsertMany(ctx, runID1, strategy.ID, symbol.ID, timeframe.ID, []domain.Signal{{
+		DedupeKey: "trend-long-v1|BTC|1h|entry|" + firstAt.Format(time.RFC3339),
+		Time:      firstAt,
+		Type:      "entry",
+		Side:      "long",
+		Price:     100,
+		Status:    "confirmed",
+		Title:     "Trend entry",
+	}}); err != nil {
+		t.Fatalf("insert first signal: %v", err)
+	}
+
+	runID2, err := runs.Start(ctx, strategy.ID, symbol.ID, timeframe.ID, strategy.DefaultParams, &secondAt, &secondAt, 10)
+	if err != nil {
+		t.Fatalf("start second run: %v", err)
+	}
+	if err := signals.UpsertMany(ctx, runID2, strategy.ID, symbol.ID, timeframe.ID, []domain.Signal{{
+		DedupeKey: "trend-long-v1|BTC|1h|entry|" + secondAt.Format(time.RFC3339),
+		Time:      secondAt,
+		Type:      "entry",
+		Side:      "long",
+		Price:     101,
+		Status:    "confirmed",
+		Title:     "Trend entry",
+	}}); err != nil {
+		t.Fatalf("insert second signal: %v", err)
+	}
+
+	sender := &fakeSender{}
+	notifier := notifications.NewTelegramSignalNotifier(
+		signals,
+		postgres.NewSignalNotificationRepository(db),
+		sender,
+		"-100123456789",
+		"http://dr54.ru/",
+		1,
+	)
+	if err := notifier.NotifyEntries(ctx, runID1); err != nil {
+		t.Fatalf("notify first run: %v", err)
+	}
+	if err := notifier.NotifyEntries(ctx, runID2); err != nil {
+		t.Fatalf("notify second run: %v", err)
+	}
+	if len(sender.sent) != 1 {
+		t.Fatalf("expected cap to allow only one telegram message, got %d", len(sender.sent))
 	}
 }
