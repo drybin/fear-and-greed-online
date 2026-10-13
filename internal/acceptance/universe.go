@@ -1,14 +1,13 @@
 package acceptance
 
 const (
-	ExpectedTotalSymbols  = 50
-	ExpectedActiveSymbols = 38
+	ExpectedTotalSymbols  = 64
+	ExpectedActiveSymbols = 53
 	ExpectedTimeframes    = 3
 	ExpectedStrategies    = 3
 )
 
 var InactiveAssetCodes = []string{
-	"HYPE",
 	"LEO",
 	"XMR",
 	"CC",

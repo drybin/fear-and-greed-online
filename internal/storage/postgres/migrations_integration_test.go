@@ -33,18 +33,25 @@ func TestRollbackLastMigration(t *testing.T) {
 		t.Fatalf("unexpected migration count after rollback: got %d want %d", migrationCount, beforeCount-1)
 	}
 
-	var tableExists bool
+	// Latest migration 000010 adds requested Spot symbols; rollback must remove them.
+	var remainingRequested int
 	if err := db.QueryRow(`
-		SELECT EXISTS (
-			SELECT 1
-			FROM information_schema.tables
-			WHERE table_name = 'signal_notifications'
-		)
-	`).Scan(&tableExists); err != nil {
-		t.Fatalf("check rolled back table: %v", err)
+		SELECT COUNT(*)
+		FROM symbols
+		WHERE asset_code IN ('1INCH', 'ANKR', 'APT', 'ARB', 'DASH', 'EGLD', 'STRK')
+	`).Scan(&remainingRequested); err != nil {
+		t.Fatalf("count rolled back symbols: %v", err)
 	}
-	if tableExists {
-		t.Fatal("expected signal_notifications table to be removed after rollback")
+	if remainingRequested != 0 {
+		t.Fatalf("expected requested symbols to be removed after rollback, got %d", remainingRequested)
+	}
+
+	var symbolCount int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM symbols`).Scan(&symbolCount); err != nil {
+		t.Fatalf("count symbols after rollback: %v", err)
+	}
+	if symbolCount != 57 {
+		t.Fatalf("unexpected symbol count after rollback: got %d want 57", symbolCount)
 	}
 
 	if err := postgres.ApplyMigrations(db); err != nil {
@@ -96,16 +103,16 @@ func assertSeededReferenceData(t *testing.T, db *sql.DB) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM symbols`).Scan(&symbolCount); err != nil {
 		t.Fatalf("count symbols: %v", err)
 	}
-	if symbolCount != 50 {
-		t.Fatalf("unexpected symbol count: got %d want 50", symbolCount)
+	if symbolCount != 64 {
+		t.Fatalf("unexpected symbol count: got %d want 64", symbolCount)
 	}
 
 	var activeSymbols int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM symbols WHERE is_active = TRUE`).Scan(&activeSymbols); err != nil {
 		t.Fatalf("count active symbols: %v", err)
 	}
-	if activeSymbols != 38 {
-		t.Fatalf("unexpected active symbol count: got %d want 38", activeSymbols)
+	if activeSymbols != 53 {
+		t.Fatalf("unexpected active symbol count: got %d want 53", activeSymbols)
 	}
 
 	var timeframeCount int

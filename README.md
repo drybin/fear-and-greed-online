@@ -2,7 +2,7 @@
 
 Standalone online application for market data ingestion, independent strategy execution, and chart-based signal inspection.
 
-The MVP covers a frozen July 6, 2026 CoinMarketCap top-50 non-stable snapshot: **50 seeded symbols**, **38 active Binance Spot pairs**, two long-only strategies, candle sync from Binance, and a single-page dashboard for chart inspection.
+The MVP covers a frozen July 6, 2026 CoinMarketCap top-50 non-stable snapshot plus a position-limits shortlist and requested Spot symbols: **64 seeded symbols**, **53 active Binance Spot pairs**, three long-only strategies, candle sync from Binance, and a single-page dashboard for chart inspection.
 
 ## Prerequisites
 
@@ -146,9 +146,9 @@ make migrate-reset
 Migrations create the market-data and strategy-engine schema, then seed:
 
 - timeframes: `15m`, `1h`, `4h`
-- 50 top-market-cap symbols with Binance pair metadata
-- 38 active symbols and 12 inactive symbols
-- strategies `trend-long-v1` and `breakout-retest-v1`
+- 50 top-market-cap symbols with Binance pair metadata, plus 7 position-limits shortlist symbols and 7 requested Spot symbols
+- 53 active symbols and 11 inactive symbols
+- strategies `trend-long-v1`, `breakout-retest-v1`, and `prev-day-range-breakout-v1`
 
 To fully wipe the Docker volume instead, run:
 
@@ -169,9 +169,11 @@ curl http://localhost/symbols/active
 curl http://localhost/symbols/all
 ```
 
-The seeded snapshot contains 50 assets. Twelve are marked inactive because they are not available as Binance Spot pairs in the MVP mapping:
+The base seeded snapshot contains 50 CMC assets. Eleven remain inactive because they are not available as Binance Spot pairs in the MVP mapping:
 
-`HYPE`, `LEO`, `XMR`, `CC`, `CRO`, `OKB`, `M`, `MNT`, `PI`, `BGB`, `KCS`, `KAS`
+`LEO`, `XMR`, `CC`, `CRO`, `OKB`, `M`, `MNT`, `PI`, `BGB`, `KCS`, `KAS`
+
+Later migrations add a position-limits shortlist of active Spot USDT pairs (`BONK`, `FLOKI`, `TRUMP`, `LDO`, `WIF`, `PUMP`, `VIRTUAL`), activate `HYPE` once Spot mapping is available, and add requested Spot symbols (`1INCH`, `ANKR`, `APT`, `ARB`, `DASH`, `EGLD`, `STRK`). Totals after those migrations: **64** symbols, **53** active.
 
 Inactive symbols remain in the database for auditability but are excluded from sync, strategy runs, and dashboard symbol filters.
 
@@ -189,7 +191,7 @@ Sync the full active universe in one worker run:
 make sync-candles
 ```
 
-Or sync each of the 38 active symbols separately (one failed pair does not abort the rest):
+Or sync each of the 53 active symbols separately (one failed pair does not abort the rest):
 
 ```bash
 ./scripts/sync-active-candles.sh
@@ -197,7 +199,7 @@ Or sync each of the 38 active symbols separately (one failed pair does not abort
 make sync-active
 ```
 
-Full-universe sync is slower and makes many Binance API requests across 38 symbols and 3 timeframes. Prefer scoped sync during development.
+Full-universe sync is slower and makes many Binance API requests across 53 symbols and 3 timeframes. Prefer scoped sync during development.
 
 Behavior:
 
@@ -346,9 +348,9 @@ Requires Docker, network access to Binance, and a `.env` file (or defaults from 
 make acceptance
 ```
 
-`make acceptance` runs `go run ./cmd/acceptance` and verifies the frozen top-50 universe end to end:
+`make acceptance` runs `go run ./cmd/acceptance` and verifies the configured universe end to end:
 
-1. Seeded universe invariants: 50 total symbols, 38 active, 12 inactive unsupported assets
+1. Seeded universe invariants: 64 total symbols, 53 active, 11 inactive unsupported assets
 2. Active symbols are queryable from the CLI and API
 3. Inactive symbols stay out of `/symbols/active` but remain visible in `/symbols/all`
 4. Candle sync and both MVP strategies run for the acceptance asset (default `BTC`)

@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	expectedActiveSymbols = 38
+	expectedActiveSymbols = 53
 	expectedTimeframes    = 3
 	expectedStrategies    = 3
 )
