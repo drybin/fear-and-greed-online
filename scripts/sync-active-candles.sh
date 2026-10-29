@@ -7,8 +7,14 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+WORKER="$ROOT/bin/fear-and-greed-online-worker"
+if [[ ! -x "$WORKER" ]]; then
+  echo "Missing worker binary; run make build first" >&2
+  exit 1
+fi
+
 echo "==> listing active symbols"
-list_out="$(go run ./cmd/worker list-active-symbols)"
+list_out="$("$WORKER" list-active-symbols)"
 echo "$list_out"
 
 failed=0
@@ -21,7 +27,7 @@ while read -r rank asset _rest; do
   fi
   count=$((count + 1))
   echo "==> sync ${asset} (${count})"
-  if ! go run ./cmd/worker sync-candles --asset "$asset"; then
+  if ! "$WORKER" sync-candles --asset "$asset"; then
     echo "WARN: sync failed for ${asset}" >&2
     failed=$((failed + 1))
     failed_assets+=("$asset")
